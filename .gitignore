@@ -1,0 +1,18 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.env
+.env.*
+!.env.example
+.data/
+.easycode/
+dist/
+*.egg-info/
+*.log
+
+# 本地工作区
+.workbuddy/
+.zcode/
+个人简历源码/
