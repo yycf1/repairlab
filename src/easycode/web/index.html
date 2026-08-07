@@ -1,0 +1,131 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>EasyCode</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23285e4b'/><text x='12' y='46' font-family='Georgia,serif' font-size='40' fill='%23e8f2e8'>E</text><path d='M38 26L50 14M50 14h-10M50 14v10' stroke='%23a8c98f' stroke-width='4' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+  <link rel="stylesheet" href="/static/style.css?v=10">
+  <script>
+    /* 主题引导：先于渲染设置 data-theme，避免暗色用户闪白 */
+    (function () {
+      var mode = localStorage.getItem('easycode-theme') || 'system';
+      var dark = mode === 'dark' || (mode === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    })();
+  </script>
+</head>
+<body>
+<aside class="sidebar" id="sidebar">
+  <a class="brand" href="/"><span class="brand-mark">E<span>↗</span></span><span>EasyCode<small>CODING AGENT</small></span></a>
+  <button id="new-session" class="new-session">＋ 新会话</button>
+  <input id="session-search" class="session-search" placeholder="搜索会话（Ctrl+K）">
+  <nav id="session-list" class="session-list" aria-label="会话列表"></nav>
+  <div class="sidebar-foot">
+    <button id="model-chip" class="model-chip" title="点击配置模型">○ 加载中…</button>
+    <button id="theme-toggle" class="theme-toggle" title="切换主题">◐</button>
+  </div>
+</aside>
+<div class="scrim" id="scrim"></div>
+<main class="main">
+  <header class="topbar" id="topbar" hidden>
+    <button id="nav-toggle" class="nav-toggle" aria-label="会话列表">☰</button>
+    <span id="ws-chip" class="chip mono" title=""></span>
+    <span id="backend-chip" class="chip"></span>
+    <span id="tools-chip" class="chip" title="工具集"></span>
+    <span id="status" class="status"></span>
+    <span id="queue-chip" class="chip queue hidden" title="排队中的补充要求"></span>
+    <span class="spacer"></span>
+    <button id="usage" class="usage" type="button" title="点击查看用量明细"></button>
+    <a id="export-btn" class="ghost hidden" download>⇲ 导出</a>
+    <button id="cancel-btn" class="ghost danger hidden">■ 停止</button>
+  </header>
+  <div id="conn-bar" class="conn-bar hidden">连接中断，正在重连…</div>
+  <section id="stream" class="stream">
+    <div class="welcome">
+      <h1>EasyCode</h1>
+      <p>给它一个文件夹和一句任务，它会自己读代码、改文件、跑命令，做完用中文向你汇报。</p>
+      <p class="welcome-hint">点左侧「＋ 新会话」开始；它工作时你随时都能打字补充要求，它做完手头这步就会照办。</p>
+    </div>
+  </section>
+  <footer class="composer">
+    <div id="composer-error" class="composer-error"></div>
+    <div class="composer-row">
+      <textarea id="composer-text" rows="1" placeholder="想让它做什么？回车发送；它工作时发送 = 排队补充…"></textarea>
+      <button id="composer-send" class="send">发送</button>
+    </div>
+    <div class="composer-hint" id="composer-hint"><kbd>Enter</kbd> 发送 · <kbd>Shift</kbd>+<kbd>Enter</kbd> 换行 · <kbd>/</kbd> 聚焦输入 · <kbd>Ctrl</kbd>+<kbd>K</kbd> 搜索会话</div>
+  </footer>
+</main>
+<dialog id="new-dialog" class="dialog">
+  <h3>新会话</h3>
+  <label>工作文件夹（它会在里面读写文件、运行命令）</label>
+  <div class="input-row">
+    <input id="new-cwd" class="text-input mono" placeholder="例如 E:\projects\my-app">
+    <button id="new-browse" type="button" class="ghost">浏览…</button>
+  </div>
+  <div id="new-cwd-error" class="composer-error"></div>
+  <label>任务</label>
+  <textarea id="new-task" rows="4" placeholder="要做什么？说清目标就行，比如改哪里、做完什么样算完成…"></textarea>
+  <div class="dialog-grid">
+    <div><label>运行方式</label>
+      <select id="new-backend" class="text-input">
+        <option value="docker">Docker 隔离容器（默认，更安全）</option>
+        <option value="local">直接在本机跑（仅建议可信文件夹）</option>
+      </select>
+      <div id="docker-warn" class="composer-error hidden">未检测到 Docker，请先安装并启动，或改用“直接在本机跑”。</div>
+    </div>
+    <div><label>工具集</label>
+      <input id="new-tools" class="text-input" placeholder="默认 read,bash,edit,write"></div>
+  </div>
+  <details class="advanced" id="new-advanced">
+    <summary>高级设置（用量上限，默认宽松）</summary>
+    <div class="dialog-grid four">
+      <div><label>最多步数</label><input id="new-max-steps" class="text-input" type="number" value="200" min="1" max="1000"></div>
+      <div><label>花费上限 ¥</label><input id="new-max-cost" class="text-input" type="number" step="0.5" min="0" placeholder="不限"></div>
+      <div><label>总时限（秒）</label><input id="new-max-seconds" class="text-input" type="number" value="1800" min="10" max="7200"></div>
+      <div><label>单命令限时（秒）</label><input id="new-command-timeout" class="text-input" type="number" value="60" min="1" max="600"></div>
+    </div>
+  </details>
+  <div class="dialog-actions">
+    <button id="new-cancel" type="button" class="ghost">取消</button>
+    <button id="new-create" type="button" class="primary">开始</button>
+  </div>
+  <div id="new-error" class="composer-error"></div>
+</dialog>
+<dialog id="model-dialog" class="dialog">
+  <h3>模型设置</h3>
+  <label>供应商预设</label>
+  <select id="model-provider" class="text-input"></select>
+  <div id="provider-note" class="provider-note"></div>
+  <label>接口地址（Base URL）</label>
+  <input id="model-base-url" class="text-input mono" placeholder="https://api.deepseek.com/v1">
+  <label>模型名称</label>
+  <input id="model-name" class="text-input mono" list="model-suggestions">
+  <datalist id="model-suggestions"></datalist>
+  <label>API Key <span id="key-masked" class="key-masked"></span></label>
+  <input id="model-api-key" class="text-input mono" type="password" placeholder="留空表示沿用已保存的密钥">
+  <div class="dialog-actions">
+    <button id="model-test" type="button" class="ghost">测试连接</button>
+    <span id="model-test-result" class="model-test-result"></span>
+    <span class="spacer"></span>
+    <button id="model-close" type="button" class="ghost">取消</button>
+    <button id="model-save" type="button" class="primary">保存并生效</button>
+  </div>
+  <div id="model-error" class="composer-error"></div>
+</dialog>
+<dialog id="usage-dialog" class="dialog">
+  <h3>用量明细</h3>
+  <div id="usage-summary" class="usage-summary"></div>
+  <div class="steps-bar"><div id="steps-fill" class="steps-fill"></div></div>
+  <div id="steps-note" class="steps-note"></div>
+  <div id="usage-rows"></div>
+  <div class="dialog-actions">
+    <button id="usage-close" type="button" class="ghost">关闭</button>
+  </div>
+</dialog>
+<div id="toasts" class="toasts"></div>
+<script src="/static/render.js?v=8"></script>
+<script src="/static/app.js?v=8"></script>
+</body>
+</html>
