@@ -1,5 +1,5 @@
 * text=auto eol=lf
 *.cmd text eol=crlf
 # Upstream provenance hashes refer to exact bytes, including original newlines.
-src/repairlab/_vendor/mini/* -text
-third_party/mini-swe-agent/LICENSE.md -text
+src/repairlab/_vendor/mini/* -text whitespace=cr-at-eol
+third_party/mini-swe-agent/LICENSE.md -text whitespace=cr-at-eol

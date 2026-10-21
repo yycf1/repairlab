@@ -1,0 +1,479 @@
+{
+  "schema_version": 1,
+  "kind": "scripted_mechanism_demo",
+  "real_model_evaluation": false,
+  "scope": "3 bundled fixtures x 2 scripted strategies; no model success-rate claim",
+  "backend": "docker",
+  "python": "3.12.3",
+  "platform": "Linux",
+  "all_expectations_met": true,
+  "results": [
+    {
+      "fixture": "boundary-discount",
+      "fixture_sha256": "804e0f2fac65bd7f7e88940209f573180d773cfb015527b84f60020d3c5c354a",
+      "strategy": "single_shot",
+      "expected_status": "passed",
+      "status": "passed",
+      "matches_expectation": true,
+      "scripted_calls": 7,
+      "tokens": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "seconds": 1.499,
+      "reason": "verified",
+      "patch_sha256": "423d251b9e92f30b48b15a8622084edb38642ce5b398b226b9a47ac0d660e489",
+      "suites": {
+        "acceptance": {
+          "counts": {
+            "passed": 5
+          },
+          "policy": {
+            "passed": true,
+            "reason": "verified",
+            "required_count": 5,
+            "missing": [],
+            "not_passed": []
+          },
+          "nodes": [
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[threshold]",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[above]",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[below]",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[zero-price]",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[zero-quantity]",
+              "outcome": "passed"
+            }
+          ]
+        },
+        "regression": {
+          "counts": {
+            "passed": 3
+          },
+          "policy": {
+            "passed": true,
+            "reason": "verified",
+            "required_count": 3,
+            "missing": [],
+            "not_passed": []
+          },
+          "nodes": [
+            {
+              "nodeid": "tests/test_pricing.py::test_discount_starts_at_ten",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "tests/test_pricing.py::test_below_threshold",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "tests/test_pricing.py::test_negative_quantity",
+              "outcome": "passed"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "fixture": "boundary-discount",
+      "fixture_sha256": "804e0f2fac65bd7f7e88940209f573180d773cfb015527b84f60020d3c5c354a",
+      "strategy": "feedback",
+      "expected_status": "passed",
+      "status": "passed",
+      "matches_expectation": true,
+      "scripted_calls": 10,
+      "tokens": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "seconds": 1.974,
+      "reason": "verified",
+      "patch_sha256": "423d251b9e92f30b48b15a8622084edb38642ce5b398b226b9a47ac0d660e489",
+      "suites": {
+        "acceptance": {
+          "counts": {
+            "passed": 5
+          },
+          "policy": {
+            "passed": true,
+            "reason": "verified",
+            "required_count": 5,
+            "missing": [],
+            "not_passed": []
+          },
+          "nodes": [
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[threshold]",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[above]",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[below]",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[zero-price]",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[zero-quantity]",
+              "outcome": "passed"
+            }
+          ]
+        },
+        "regression": {
+          "counts": {
+            "passed": 3
+          },
+          "policy": {
+            "passed": true,
+            "reason": "verified",
+            "required_count": 3,
+            "missing": [],
+            "not_passed": []
+          },
+          "nodes": [
+            {
+              "nodeid": "tests/test_pricing.py::test_discount_starts_at_ten",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "tests/test_pricing.py::test_below_threshold",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "tests/test_pricing.py::test_negative_quantity",
+              "outcome": "passed"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "fixture": "csv-tags",
+      "fixture_sha256": "68439a89dc8df47644381f539056c239d855fefb844f8e0235e9f8411b323b54",
+      "strategy": "single_shot",
+      "expected_status": "failed",
+      "status": "failed",
+      "matches_expectation": true,
+      "scripted_calls": 7,
+      "tokens": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "seconds": 1.483,
+      "reason": "execution_failed",
+      "patch_sha256": "7f311e0b7f4475b6105e35cb3f8d421976d1449972bf50dd93e6749d60f1e2b8",
+      "suites": {
+        "acceptance": {
+          "counts": {
+            "failed": 2,
+            "passed": 2
+          },
+          "policy": {
+            "passed": false,
+            "reason": "execution_failed",
+            "required_count": 4,
+            "missing": [],
+            "not_passed": [
+              "_acceptance/test_acceptance.py::test_required_behavior[empty]",
+              "_acceptance/test_acceptance.py::test_required_behavior[blank]"
+            ]
+          },
+          "nodes": [
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[empty]",
+              "outcome": "failed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[blank]",
+              "outcome": "failed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[duplicates]",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[whitespace]",
+              "outcome": "passed"
+            }
+          ]
+        },
+        "regression": {
+          "counts": {
+            "passed": 2,
+            "failed": 1
+          },
+          "policy": {
+            "passed": false,
+            "reason": "execution_failed",
+            "required_count": 3,
+            "missing": [],
+            "not_passed": [
+              "tests/test_tags.py::test_ignore_empty"
+            ]
+          },
+          "nodes": [
+            {
+              "nodeid": "tests/test_tags.py::test_strip_spaces",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "tests/test_tags.py::test_ignore_empty",
+              "outcome": "failed"
+            },
+            {
+              "nodeid": "tests/test_tags.py::test_keep_case_and_order",
+              "outcome": "passed"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "fixture": "csv-tags",
+      "fixture_sha256": "68439a89dc8df47644381f539056c239d855fefb844f8e0235e9f8411b323b54",
+      "strategy": "feedback",
+      "expected_status": "passed",
+      "status": "passed",
+      "matches_expectation": true,
+      "scripted_calls": 14,
+      "tokens": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "seconds": 2.432,
+      "reason": "verified",
+      "patch_sha256": "49601ab4c12494be3b48e15c76be85d9689705e094d35f530fba3d00dc2affb0",
+      "suites": {
+        "acceptance": {
+          "counts": {
+            "passed": 4
+          },
+          "policy": {
+            "passed": true,
+            "reason": "verified",
+            "required_count": 4,
+            "missing": [],
+            "not_passed": []
+          },
+          "nodes": [
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[empty]",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[blank]",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[duplicates]",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[whitespace]",
+              "outcome": "passed"
+            }
+          ]
+        },
+        "regression": {
+          "counts": {
+            "passed": 3
+          },
+          "policy": {
+            "passed": true,
+            "reason": "verified",
+            "required_count": 3,
+            "missing": [],
+            "not_passed": []
+          },
+          "nodes": [
+            {
+              "nodeid": "tests/test_tags.py::test_strip_spaces",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "tests/test_tags.py::test_ignore_empty",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "tests/test_tags.py::test_keep_case_and_order",
+              "outcome": "passed"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "fixture": "pagination",
+      "fixture_sha256": "c510bccb224c4d13683b722e58043c7d19db5d861c09a8bcf04cfb4d4ac8461a",
+      "strategy": "single_shot",
+      "expected_status": "passed",
+      "status": "passed",
+      "matches_expectation": true,
+      "scripted_calls": 7,
+      "tokens": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "seconds": 1.482,
+      "reason": "verified",
+      "patch_sha256": "557ea6e32f1cf16f97f7c2fd90af64e5ed7260836eaf86c81e02d4cfae560817",
+      "suites": {
+        "acceptance": {
+          "counts": {
+            "passed": 5
+          },
+          "policy": {
+            "passed": true,
+            "reason": "verified",
+            "required_count": 5,
+            "missing": [],
+            "not_passed": []
+          },
+          "nodes": [
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[empty]",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[one]",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[full]",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[partial]",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[large]",
+              "outcome": "passed"
+            }
+          ]
+        },
+        "regression": {
+          "counts": {
+            "passed": 3
+          },
+          "policy": {
+            "passed": true,
+            "reason": "verified",
+            "required_count": 3,
+            "missing": [],
+            "not_passed": []
+          },
+          "nodes": [
+            {
+              "nodeid": "tests/test_pagination.py::test_partial_page",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "tests/test_pagination.py::test_full_page",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "tests/test_pagination.py::test_invalid_size",
+              "outcome": "passed"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "fixture": "pagination",
+      "fixture_sha256": "c510bccb224c4d13683b722e58043c7d19db5d861c09a8bcf04cfb4d4ac8461a",
+      "strategy": "feedback",
+      "expected_status": "passed",
+      "status": "passed",
+      "matches_expectation": true,
+      "scripted_calls": 10,
+      "tokens": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "seconds": 1.871,
+      "reason": "verified",
+      "patch_sha256": "557ea6e32f1cf16f97f7c2fd90af64e5ed7260836eaf86c81e02d4cfae560817",
+      "suites": {
+        "acceptance": {
+          "counts": {
+            "passed": 5
+          },
+          "policy": {
+            "passed": true,
+            "reason": "verified",
+            "required_count": 5,
+            "missing": [],
+            "not_passed": []
+          },
+          "nodes": [
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[empty]",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[one]",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[full]",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[partial]",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "_acceptance/test_acceptance.py::test_required_behavior[large]",
+              "outcome": "passed"
+            }
+          ]
+        },
+        "regression": {
+          "counts": {
+            "passed": 3
+          },
+          "policy": {
+            "passed": true,
+            "reason": "verified",
+            "required_count": 3,
+            "missing": [],
+            "not_passed": []
+          },
+          "nodes": [
+            {
+              "nodeid": "tests/test_pagination.py::test_partial_page",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "tests/test_pagination.py::test_full_page",
+              "outcome": "passed"
+            },
+            {
+              "nodeid": "tests/test_pagination.py::test_invalid_size",
+              "outcome": "passed"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

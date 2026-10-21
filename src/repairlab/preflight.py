@@ -23,9 +23,16 @@ def local_directory(value):
     path = Path(value).expanduser()
     if not path.is_absolute() or str(path).startswith(("\\\\", "//")):
         raise ValueError("请填写本机绝对目录，暂不支持网络共享目录。")
+    # Reject drive roots before accessing the filesystem: the drive may not
+    # exist on another machine (for example a GitHub Windows runner).
+    if path == Path(path.anchor):
+        raise ValueError("请选择具体的仓库目录，不能选择磁盘根目录。")
     if path.is_symlink() or getattr(path, "is_junction", lambda: False)():
         raise ValueError("目录不能是符号链接或 junction。")
-    path = path.resolve(strict=True)
+    try:
+        path = path.resolve(strict=True)
+    except OSError as error:
+        raise ValueError("所选目录不存在或无法访问。") from error
     if not path.is_dir() or path == Path(path.anchor):
         raise ValueError("请选择具体的仓库目录，不能选择磁盘根目录。")
     return path

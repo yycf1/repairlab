@@ -1,0 +1,35 @@
+{
+  "passed": true,
+  "image_id": "sha256:f604afe1b8aea012044ec806c2d4019f14d84d9ccd1c0f6a8e207362be87acd5",
+  "docker_server": "28.0.4",
+  "constraints": {
+    "valid": true,
+    "schema_version": 1,
+    "run_id": "caf6104d84144ca6a9bd3648b85c9525",
+    "nodes": [
+      {
+        "nodeid": "test_constraints.py::test_non_root",
+        "outcome": "passed"
+      },
+      {
+        "nodeid": "test_constraints.py::test_workspace_readonly",
+        "outcome": "passed"
+      },
+      {
+        "nodeid": "test_constraints.py::test_root_readonly",
+        "outcome": "passed"
+      },
+      {
+        "nodeid": "test_constraints.py::test_network_disabled",
+        "outcome": "passed"
+      }
+    ],
+    "counts": {
+      "passed": 4
+    },
+    "deselected": [],
+    "collection_errors": []
+  },
+  "timeout_observed": true,
+  "timed_out_container_removed": true
+}

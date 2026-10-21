@@ -112,3 +112,8 @@ def test_discovery_and_picker_api_authorization_cancel_and_failure(repo, setting
 def test_discovery_rejects_root_and_relative_paths(settings, source):
     with pytest.raises(ValueError):
         discover_repository(source, settings)
+
+
+def test_missing_directory_has_a_user_facing_validation_error(tmp_path, settings):
+    with pytest.raises(ValueError, match="不存在或无法访问"):
+        discover_repository(str(tmp_path / "missing-repository"), settings)

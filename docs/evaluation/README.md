@@ -18,7 +18,9 @@ uv run python scripts/verify_docker.py --output .data/docker-checks.json
 uv run python scripts/evaluate_offline.py --backend docker --output .data/docker-demo.json
 ```
 
-实测非 root UID、源码只读、根文件系统只读、无外部网络接口、外网连接失败、超时终止与容器清理。报告记录镜像 ID 和 Docker 服务版本。此检查不声称覆盖容器逃逸、所有资源限制或任意不可信仓库。开发机未安装 Docker，实机验证在 GitHub Linux runner 上完成后记录状态。
+实测非 root UID、源码只读、根文件系统只读、无外部网络接口、外网连接失败、超时终止与容器清理。报告记录镜像 ID 和 Docker 服务版本。此检查不声称覆盖容器逃逸、所有资源限制或任意不可信仓库。开发机未安装 Docker，2026-10-21 已在 [GitHub Linux runner](https://github.com/yycf1/repairlab/actions/runs/39576285462) 完成 Docker 作业；同次 Windows 检查发现目录验证兼容问题，随后修正，不将这次整个工作流说成成功。
+
+公开原始记录：[Docker 约束检查](docker-checks-2026-10-21.json)、[Docker 六场景报告](docker-demo-2026-10-21.json)。镜像 ID `sha256:f604afe1b8aea012044ec806c2d4019f14d84d9ccd1c0f6a8e207362be87acd5`，Docker 服务版本 `28.0.4`。
 
 ## 真实模型评测仍需补齐
 

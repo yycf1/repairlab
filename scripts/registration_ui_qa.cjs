@@ -64,6 +64,8 @@ const path = require('path');
     await page.locator('#repository-dialog').waitFor({state:'visible'});
     await page.locator('#repository-advanced > summary').click();
     await page.fill('#repo-name', '已更新的本地仓库');
+    await page.fill('#repo-required-acceptance', 'tests/test_parser.py::test_tags');
+    await page.fill('#repo-required-regression', 'tests/test_parser.py::test_tags');
     const updated = page.waitForResponse(r => r.url().endsWith(`/api/repositories/${saved.id}`) && r.request().method() === 'PUT');
     await page.click('#save-repository'); await updated;
     await page.waitForFunction(() => document.querySelector('#fixture option:checked').textContent === '已更新的本地仓库');
@@ -73,6 +75,8 @@ const path = require('path');
     await page.setViewportSize({width:390,height:844});
     await page.click('#edit-repository');
     await page.locator('#repository-dialog').waitFor({state:'visible'});
+    if (await page.locator('#repo-required-acceptance').inputValue() !== 'tests/test_parser.py::test_tags' ||
+        await page.locator('#repo-required-regression').inputValue() !== 'tests/test_parser.py::test_tags') throw new Error('Required test lists were not preserved');
     await page.screenshot({path:path.join(images,'repository-registration-mobile.png'),fullPage:true});
     const overflow = await page.evaluate(() => {
       const dialog = document.querySelector('dialog').getBoundingClientRect();
