@@ -1,0 +1,210 @@
+from __future__ import annotations
+
+from concurrent.futures import ThreadPoolExecutor
+import json
+from pathlib import Path
+import threading
+import time
+import uuid
+
+from repairlab.agent import RepairAgent
+from repairlab.lease import DataLease
+from repairlab.model import CompatibleModel, DemoModel
+from repairlab.models import RepoProfile, RepositoryCheck, StartRequest
+from repairlab.preflight import inspect_repository, local_directory
+from repairlab.repository import Repository, copy_repository, diff_repositories
+from repairlab.runners import make_runner
+from repairlab.storage import Store
+from repairlab.tools import ToolEnvironment
+from repairlab.verification import Verifier
+
+TERMINAL = {"passed", "failed", "error", "cancelled", "interrupted", "budget_exhausted", "blocked", "reviewed"}
+
+
+class Service:
+    def __init__(self, settings):
+        self.settings = settings
+        self.lease = DataLease(settings.data_dir)
+        try:
+            self.store = Store(settings.data_dir / "repairlab.sqlite3")
+            self.store.recover_interrupted()
+        except Exception:
+            self.lease.close()
+            raise
+        self.pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="repairlab")
+        self.cancellations = {}
+
+    def fixtures(self):
+        result = []
+        for path in sorted((self.settings.root / "examples").glob("*/profile.json")):
+            data = json.loads(path.read_text(encoding="utf-8"))
+            result.append({"id": path.parent.name, "name": data["name"], "description": data["description"],
+                           "issue": data["issue"], "demo": True})
+        return result
+
+    def profile(self, fixture):
+        registered = self.store.repository(fixture)
+        if registered:
+            return RepoProfile.model_validate(registered["profile"]), None
+        # Arbitrary host paths must first be explicitly registered by the local operator.
+        ids = {f["id"] for f in self.fixtures()}
+        if fixture not in ids:
+            raise ValueError("Unknown registered repository")
+        base = self.settings.root / "examples" / fixture
+        data = json.loads((base / "profile.json").read_text(encoding="utf-8"))
+        demo_config = data.pop("demo_config")
+        data.update(source=str(base / "repo"), acceptance=str(base / "acceptance"), demo=True)
+        return RepoProfile.model_validate(data), demo_config
+
+    def repositories(self):
+        builtins = [{**f, "kind": "builtin"} for f in self.fixtures()]
+        custom = [{"id": r["id"], "name": r["profile"]["name"], "description": r["profile"]["description"],
+                   "issue": r["profile"]["issue"], "source": r["profile"]["source"], "demo": False,
+                   "kind": "local", "preflight": r["preflight"]} for r in self.store.repositories()]
+        return builtins + custom
+
+    def check_registration(self, request):
+        if not request.authorize_directory:
+            raise ValueError("请明确授权 RepairLab 读取所填写的本机仓库目录。")
+        return inspect_repository(request.profile, request, self.settings)
+
+    def register(self, request, repository_id=None):
+        if repository_id is not None and self.store.repository(repository_id) is None:
+            raise ValueError("已登记仓库不存在。")
+        report = self.check_registration(request)
+        if not report["can_register"]:
+            raise ValueError("仓库配置未通过检查：" + report["checks"][-1]["detail"])
+        profile = request.profile.model_copy(update={"source": str(local_directory(request.profile.source)), "demo": False,
+            "acceptance": str(local_directory(request.profile.acceptance)) if request.profile.acceptance else None})
+        repository_id = repository_id or "local-" + uuid.uuid4().hex[:16]
+        return self.store.save_repository(repository_id, {"profile": profile.model_dump(), "preflight": report})
+
+    def check_repository(self, repository_id, options):
+        registered = self.store.repository(repository_id)
+        if registered is None:
+            raise ValueError("已登记仓库不存在。")
+        report = inspect_repository(RepoProfile.model_validate(registered["profile"]), options, self.settings)
+        self.store.save_repository(repository_id, {**registered, "preflight": report})
+        return report
+
+    def start(self, request: StartRequest, *, background=True, profile=None, model_override=None):
+        if request.task_kind == "inspect" and request.strategy != "feedback":
+            raise ValueError("自主检查需要反馈迭代策略，以验证候选问题及复现结果。")
+        if request.task_kind == "inspect" and request.mode != "model" and model_override is None:
+            raise ValueError("自主检查使用真实模型；预设脚本仅支持指定问题演示。")
+        preflight = None
+        if profile is None:
+            profile, demo_config = self.profile(request.fixture)
+            if not profile.demo:
+                preflight = self.check_repository(request.fixture, RepositoryCheck(backend=request.backend, allow_local=request.allow_local))
+                if not preflight["ready"]:
+                    errors = [c["detail"] for c in preflight["checks"] if c["status"] == "error"]
+                    raise ValueError("仓库启动预检未通过：" + "；".join(errors))
+        else:
+            demo_config = None
+        if request.mode == "model" and not self.settings.model_ready and model_override is None:
+            raise ValueError("项目2尚未配置大模型；可先运行明确标注的脚本演示。")
+        if request.mode == "demo" and demo_config is None and model_override is None:
+            raise ValueError("Scripted demos are available only for bundled fixtures")
+        runner = make_runner(request.backend, request.allow_local)
+        task_id = uuid.uuid4().hex[:16]
+        issue = (request.issue.strip() or "自主检查此仓库：依据项目约定、源码和测试发现可复现的问题；仅修复证据成立的问题，并报告检查范围和未覆盖部分。") if request.task_kind == "inspect" else (request.issue.strip() or profile.issue)
+        self.store.create(task_id, {"title": profile.name, "issue": issue, "mode": request.mode,
+            "backend": request.backend, "strategy": request.strategy, "task_kind": request.task_kind, "limits": request.limits.model_dump(),
+            "model": self.settings.model if request.mode == "model" else "scripted-demo",
+            "fixture": request.fixture, "tokens": {"prompt": 0, "completion": 0},
+            "repository_profile": profile.model_dump(exclude={"demo"}), "preflight": preflight})
+        cancel = threading.Event()
+        self.cancellations[task_id] = cancel
+        args = (task_id, request, profile, demo_config, issue, runner, cancel, model_override)
+        if background:
+            self.pool.submit(self.run, *args)
+        else:
+            self.run(*args)
+        return self.store.get(task_id)
+
+    def run(self, task_id, request, profile, demo_config, issue, runner, cancel, model_override):
+        task_dir = self.settings.data_dir / "tasks" / task_id
+        task_dir.mkdir(parents=True)
+        started = time.monotonic()
+        model = None
+        environment = None
+        def emit(kind, data):
+            self.store.event(task_id, kind, data)
+            if kind == "workflow_state":
+                self.store.update(task_id, workflow=data, plan=data["plan"])
+        try:
+            self.store.update(task_id, status="running")
+            emit("started", {"mode": request.mode, "backend": runner.name, "strategy": request.strategy})
+            baseline, workspace = task_dir / "baseline", task_dir / "workspace"
+            copy_repository(Path(profile.source), baseline)
+            copy_repository(baseline, workspace)
+            environment = ToolEnvironment(Repository(workspace, profile), runner, request.limits, emit, cancel,
+                                          task_kind=request.task_kind, baseline=baseline)
+            model = model_override or (DemoModel(demo_config, request.strategy) if request.mode == "demo"
+                                      else CompatibleModel(self.settings, request.limits))
+            controller = RepairAgent(model, environment, request.limits, emit, cancel, request.strategy)
+            result = controller.run(issue)
+            self.store.update(task_id, model_calls=model.model_calls, tokens=dict(model.tokens),
+                              plan=environment.plan, test_runs=environment.test_runs)
+            if cancel.is_set() or result.get("exit_status") == "cancelled":
+                self.store.update(task_id, status="cancelled", result="任务已取消")
+                return
+            if result.get("exit_status") != "submitted":
+                reason = result.get("exit_status", "unknown")
+                status = ("reviewed" if reason == "reviewed" else
+                          "budget_exhausted" if reason in {"LimitsExceeded", "TimeExceeded", "token_budget"} else
+                          "blocked" if reason in {"unresolved", "no_progress"} else "error")
+                self.store.update(task_id, status=status, result=reason, blocker_reason=result.get("reason"),
+                                  summary=result.get("submission", ""))
+                return
+            self.store.update(task_id, status="verifying")
+            emit("verification_started", {"note": "在干净环境中应用补丁，最终验收结果不回灌 Agent。"})
+            verification = Verifier(runner, request.limits).verify(baseline, workspace, task_dir / "verification",
+                                                                 profile, cancel=cancel, probes=environment.investigation.confirmed_probes())
+            status = "cancelled" if cancel.is_set() else "passed" if verification["passed"] else "failed"
+            self.store.update(task_id, status=status, verification=verification, summary=result.get("submission", ""),
+                              patch=verification["patch"], changed_files=verification["changed_files"])
+            emit("verification", verification)
+        except Exception as error:
+            # Store concise error types only. Operators get no accidental provider secret dumps.
+            self.store.update(task_id, status="error", error=f"任务执行失败：{type(error).__name__}")
+            emit("error", {"type": type(error).__name__})
+        finally:
+            if model is not None:
+                self.store.update(task_id, model_calls=model.model_calls, tokens=dict(model.tokens))
+            if environment is not None:
+                self.store.update(task_id, workflow=environment.state.snapshot(environment.digest()),
+                                  plan=environment.plan, test_runs=environment.test_runs)
+                if not self.store.get(task_id).get("verification"):
+                    patch, changed, violations = diff_repositories(baseline, workspace, profile)
+                    if patch:
+                        partial_dir = task_dir / "artifacts"
+                        partial_dir.mkdir(exist_ok=True)
+                        (partial_dir / "patch.diff").write_text(patch, encoding="utf-8", newline="\n")
+                        self.store.update(task_id, patch=patch, changed_files=changed,
+                                          unverified_patch=True, patch_violations=violations)
+            self.store.update(task_id, seconds=round(time.monotonic() - started, 3))
+            if model is not None and hasattr(model, "close"):
+                model.close()
+            self.cancellations.pop(task_id, None)
+            task = self.store.get(task_id)
+            report = {k: v for k, v in task.items() if k != "patch"}
+            artifacts = task_dir / "artifacts"
+            artifacts.mkdir(exist_ok=True)
+            (artifacts / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+            emit("finished", {"status": task["status"], "seconds": task.get("seconds")})
+
+    def cancel(self, task_id):
+        event = self.cancellations.get(task_id)
+        if not event:
+            return False
+        event.set()
+        self.store.event(task_id, "cancel_requested", {})
+        return True
+
+    def close(self):
+        for event in list(self.cancellations.values()):
+            event.set()
+        self.pool.shutdown(wait=True, cancel_futures=True)
+        self.lease.close()

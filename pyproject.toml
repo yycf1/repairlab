@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "repairlab"
+version = "0.1.0"
+description = "RepairLab: feedback-driven repository repair with independent verification"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.10,<3", "fastapi>=0.115,<1", "uvicorn>=0.30,<1",
+  "httpx>=0.27,<1", "jinja2>=3.1.6,<4", "python-dotenv>=1.0,<2", "packaging>=24"
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
+
+[project.scripts]
+repairlab = "repairlab.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/repairlab"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ["src/repairlab/_vendor", ".data", "examples"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]

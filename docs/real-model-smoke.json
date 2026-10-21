@@ -1,0 +1,96 @@
+{
+  "kind": "real_model_smoke",
+  "date": "2026-10-11",
+  "scope": "Three small bundled tasks; not a real-repository benchmark or success-rate estimate.",
+  "credential_storage": "temporary process environment; not copied to project2",
+  "results": [
+    {
+      "fixture": "csv-tags",
+      "model": "deepseek-ai/DeepSeek-V3.2",
+      "status": "passed",
+      "model_calls": 7,
+      "tokens": {
+        "prompt": 7861,
+        "completion": 573
+      },
+      "seconds": 61.707,
+      "backend": "local",
+      "task_id": "44aa993fd8364b67",
+      "actions": [
+        "list_files",
+        "read_file",
+        "read_file",
+        "update_plan",
+        "edit_file",
+        "run_tests",
+        "submit"
+      ],
+      "verification": {
+        "passed": true,
+        "reason": "verified",
+        "independent_acceptance": true,
+        "changed_files": [
+          "tags.py"
+        ]
+      }
+    },
+    {
+      "fixture": "pagination",
+      "model": "deepseek-ai/DeepSeek-V3.2",
+      "status": "passed",
+      "model_calls": 6,
+      "tokens": {
+        "prompt": 6375,
+        "completion": 575
+      },
+      "seconds": 97.071,
+      "backend": "local",
+      "task_id": "e20e9aa552214400",
+      "actions": [
+        "list_files",
+        "read_file",
+        "update_plan",
+        "edit_file",
+        "run_tests",
+        "submit"
+      ],
+      "verification": {
+        "passed": true,
+        "reason": "verified",
+        "independent_acceptance": true,
+        "changed_files": [
+          "pagination.py"
+        ]
+      }
+    },
+    {
+      "fixture": "boundary-discount",
+      "model": "deepseek-ai/DeepSeek-V3.2",
+      "status": "passed",
+      "model_calls": 6,
+      "tokens": {
+        "prompt": 6041,
+        "completion": 430
+      },
+      "seconds": 92.09,
+      "backend": "local",
+      "task_id": "354296be0bd741b3",
+      "actions": [
+        "list_files",
+        "read_file",
+        "update_plan",
+        "edit_file",
+        "run_tests",
+        "submit"
+      ],
+      "verification": {
+        "passed": true,
+        "reason": "verified",
+        "independent_acceptance": true,
+        "changed_files": [
+          "pricing.py"
+        ]
+      }
+    }
+  ]
+}

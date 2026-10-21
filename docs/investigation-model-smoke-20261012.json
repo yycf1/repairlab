@@ -1,0 +1,96 @@
+{
+  "kind": "real_model_self_written_sample",
+  "attempts": [
+    {
+      "task_id": "b3bfe84462c847e4",
+      "status": "error",
+      "model_calls": 17,
+      "tokens": {
+        "prompt": 41064,
+        "completion": 1647
+      },
+      "seconds": 156.81,
+      "result": "RepeatedFormatError",
+      "format_errors": []
+    },
+    {
+      "task_id": "dd229b23ab5b42c9",
+      "status": "passed",
+      "model_calls": 18,
+      "tokens": {
+        "prompt": 52359,
+        "completion": 1331
+      },
+      "seconds": 139.72,
+      "result": null,
+      "format_errors": [
+        {
+          "step": 6,
+          "detail": "动作格式不合法；按以下字段错误修正，工具名称及参数必须严格符合 Schema：[{\"field\": \"action\", \"type\": \"value_error\", \"message\": \"Value error, A candidate requires source paths, summary, expectation and a cited basis with basis_paths\"}]"
+        },
+        {
+          "step": 15,
+          "detail": "动作格式不合法；按以下字段错误修正，工具名称及参数必须严格符合 Schema：[{\"field\": \"action\", \"type\": \"value_error\", \"message\": \"Value error, candidate_id is required\"}]"
+        }
+      ]
+    }
+  ],
+  "successful_run": {
+    "id": "dd229b23ab5b42c9",
+    "status": "passed",
+    "model": "deepseek-ai/DeepSeek-V3.2",
+    "model_calls": 18,
+    "tokens": {
+      "prompt": 52359,
+      "completion": 1331
+    },
+    "seconds": 139.72,
+    "error": null,
+    "result": null,
+    "kind": "real_model_self_written_sample",
+    "task_kind": "inspect",
+    "baseline_category": "ok",
+    "candidates": [
+      {
+        "id": "c1",
+        "status": "confirmed",
+        "summary": "当前实现仅使用 split(',')，未按约定修剪空格、丢弃空标签",
+        "baseline_probe": {
+          "run_id": 2,
+          "revision": 0,
+          "source_digest": "5f8da1faae0275952ea52f76412172c1a9c702bfa7430a29469a674e182c32bc",
+          "category": "test_failure",
+          "exit_code": 1,
+          "failed_nodes": [
+            "test_repairlab_probe_c1.py::test_parse_labels_trim_and_discard"
+          ],
+          "source_locations": [
+            {
+              "path": "test_repairlab_probe_c1.py",
+              "line": 10
+            }
+          ],
+          "counts": {
+            "failed": 1
+          },
+          "hint": "Inspect failed nodes and locations; revise the hypothesis or undo an edit."
+        },
+        "latest_probe": {
+          "run_id": 4,
+          "revision": 1,
+          "source_digest": "72578916043a01db9bad7ba079e2ec81fe2d124a6d1ad1558e9e54723a413929",
+          "category": "ok",
+          "exit_code": 0,
+          "failed_nodes": [],
+          "source_locations": [],
+          "counts": {
+            "passed": 1
+          },
+          "hint": "Tests passed for this source revision; review the patch before submitting."
+        },
+        "resolution": null
+      }
+    ],
+    "verification_reason": "verified"
+  }
+}

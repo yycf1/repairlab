@@ -1,0 +1,35 @@
+{
+  "name": "阶梯折扣边界修复",
+  "description": "定位满 10 件折扣未生效的问题，核验门槛及已有价格计算。",
+  "source": "repo",
+  "editable": [
+    "pricing.py"
+  ],
+  "development_tests": [
+    "tests"
+  ],
+  "regression_tests": [
+    "tests"
+  ],
+  "issue": "客户购买 10 件商品时没有拿到约定的九折优惠。规则是数量达到 10 件即可九折，少于 10 件保持原价。请复现并修复门槛判断，保持原有金额计算行为。",
+  "demo_config": {
+    "file": "pricing.py",
+    "hypothesis": "折扣条件使用 >10，恰好 10 件未命中；改成 >=10 应使阈值用例通过，并保持少于 10 件按原价计算。",
+    "first_patch": {
+      "old": "quantity > 10",
+      "new": "quantity >= 10"
+    }
+  },
+  "required_acceptance_tests": [
+    "_acceptance/test_acceptance.py::test_required_behavior[threshold]",
+    "_acceptance/test_acceptance.py::test_required_behavior[above]",
+    "_acceptance/test_acceptance.py::test_required_behavior[below]",
+    "_acceptance/test_acceptance.py::test_required_behavior[zero-price]",
+    "_acceptance/test_acceptance.py::test_required_behavior[zero-quantity]"
+  ],
+  "required_regression_tests": [
+    "tests/test_pricing.py::test_discount_starts_at_ten",
+    "tests/test_pricing.py::test_below_threshold",
+    "tests/test_pricing.py::test_negative_quantity"
+  ]
+}

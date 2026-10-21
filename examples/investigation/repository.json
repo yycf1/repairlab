@@ -1,0 +1,9 @@
+{
+  "name": "自主调查机制样例（自建）",
+  "description": "原有测试通过；Agent 需根据 README 行为约定调查并生成复现。不是外部仓库评测。",
+  "source": "repo",
+  "editable": ["labels.py"],
+  "development_tests": ["tests"],
+  "regression_tests": ["tests"],
+  "acceptance": "acceptance"
+}

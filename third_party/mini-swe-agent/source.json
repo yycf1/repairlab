@@ -1,0 +1,39 @@
+{
+  "repository": "https://github.com/SWE-agent/mini-swe-agent",
+  "commit": "04d809ceab9df28f9adaed044884180159172930",
+  "license": "MIT",
+  "files": [
+    {
+      "origin": "src/minisweagent/agents/default.py",
+      "local": "src/repairlab/_vendor/mini/agent.py",
+      "url": "https://raw.githubusercontent.com/SWE-agent/mini-swe-agent/04d809ceab9df28f9adaed044884180159172930/src/minisweagent/agents/default.py",
+      "upstream_sha256": "e8ef8aa365942d739c2ec5cb0879f60f377d2dc2de8ec670aaedf3bafb45a4c2",
+      "local_sha256": "eeb673beb4e90e077542104baf9b452672a1c71eb2aca061a6c42a3a31335caf"
+    },
+    {
+      "origin": "src/minisweagent/exceptions.py",
+      "local": "src/repairlab/_vendor/mini/exceptions.py",
+      "url": "https://raw.githubusercontent.com/SWE-agent/mini-swe-agent/04d809ceab9df28f9adaed044884180159172930/src/minisweagent/exceptions.py",
+      "upstream_sha256": "0590393c56bee873c79a691dcb4f15cb39c85f1658598b84bfb295bfde56921d",
+      "local_sha256": "7d38ada0cbd70c30b01f7e8f9786814c327368957ac3f9edca76bb1b2bb76a6d"
+    },
+    {
+      "origin": "src/minisweagent/utils/serialize.py",
+      "local": "src/repairlab/_vendor/mini/serialize.py",
+      "url": "https://raw.githubusercontent.com/SWE-agent/mini-swe-agent/04d809ceab9df28f9adaed044884180159172930/src/minisweagent/utils/serialize.py",
+      "upstream_sha256": "3035b27cfeffdf91117c72bc8131340bd9c5f67a3010baeb4ecd6b0c7406f462",
+      "local_sha256": "ee065612c88b839e88b06c49e7ff7ff27c07803a211b54a28ecabd62fd3c4451"
+    },
+    {
+      "origin": "LICENSE.md",
+      "local": "third_party/mini-swe-agent/LICENSE.md",
+      "url": "https://raw.githubusercontent.com/SWE-agent/mini-swe-agent/04d809ceab9df28f9adaed044884180159172930/LICENSE.md",
+      "upstream_sha256": "0f796e58f91d1c07bb2c1b1d0f8bf3a83017c3a5dec1bdc6fae733b2cd2e875b",
+      "local_sha256": "f633987ba29af08042ab86d52835099d79b88ee2a36e3062db03f166c1994473"
+    }
+  ],
+  "changes": [
+    "Relocated three imports in DefaultAgent; core loop retained.",
+    "Original package startup/global dotenv side effects are not imported."
+  ]
+}

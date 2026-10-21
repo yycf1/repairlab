@@ -1,0 +1,44 @@
+name: RepairLab checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11', '3.13']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.9.4'
+      - run: uv sync --frozen --extra dev --python ${{ matrix.python }}
+      - run: uv run ruff check .
+      - run: uv run pytest -q
+      - run: uv run python scripts/evaluate_offline.py --backend local --allow-local --output .data/ci-demo.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evidence-${{ matrix.os }}-${{ matrix.python }}
+          path: .data/ci-demo.json
+          include-hidden-files: true
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.9.4'
+      - run: uv sync --frozen --extra dev --python 3.12
+      - run: docker build -f Dockerfile.runner -t repairlab-python:latest .
+      - run: uv run python scripts/verify_docker.py --output .data/docker-checks.json
+      - run: uv run python scripts/evaluate_offline.py --backend docker --output .data/docker-demo.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: docker-evidence
+          path: .data/docker-*.json
+          include-hidden-files: true

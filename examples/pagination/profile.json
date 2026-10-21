@@ -1,0 +1,35 @@
+{
+  "name": "分页总数的取整错误",
+  "description": "修复非整页情况下漏算最后一页的问题，保留参数校验。",
+  "source": "repo",
+  "editable": [
+    "pagination.py"
+  ],
+  "development_tests": [
+    "tests"
+  ],
+  "regression_tests": [
+    "tests"
+  ],
+  "issue": "page_count 用于计算列表总页数：空列表为 0 页，余数不为零时最后一页也应计入。当前 21 条记录、每页 10 条只返回 2 页。请修复并保留非法参数校验。",
+  "demo_config": {
+    "file": "pagination.py",
+    "hypothesis": "整除直接丢弃余数，21/10 被算成 2 页；向上取整应使末尾不足一页的用例通过，同时保留空列表和参数校验。",
+    "first_patch": {
+      "old": "return total // page_size",
+      "new": "return (total + page_size - 1) // page_size"
+    }
+  },
+  "required_acceptance_tests": [
+    "_acceptance/test_acceptance.py::test_required_behavior[empty]",
+    "_acceptance/test_acceptance.py::test_required_behavior[one]",
+    "_acceptance/test_acceptance.py::test_required_behavior[full]",
+    "_acceptance/test_acceptance.py::test_required_behavior[partial]",
+    "_acceptance/test_acceptance.py::test_required_behavior[large]"
+  ],
+  "required_regression_tests": [
+    "tests/test_pagination.py::test_partial_page",
+    "tests/test_pagination.py::test_full_page",
+    "tests/test_pagination.py::test_invalid_size"
+  ]
+}

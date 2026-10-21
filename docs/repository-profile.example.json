@@ -1,0 +1,13 @@
+{
+  "name": "我的 Python 缺陷修复任务",
+  "description": "固定仓库版本，准备可复现的失败测试",
+  "source": "../my-python-repository",
+  "editable": ["src/**/*.py"],
+  "development_tests": ["tests"],
+  "acceptance": "../private-acceptance-tests",
+  "regression_tests": ["tests"],
+  "required_acceptance_tests": [],
+  "required_regression_tests": [],
+  "image": "repairlab-python:latest",
+  "issue": "填写实际行为、预期行为和复现条件"
+}

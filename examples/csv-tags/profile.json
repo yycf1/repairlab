@@ -1,0 +1,38 @@
+{
+  "name": "标签清洗的遗漏条件",
+  "description": "第一版修改只处理空白，测试反馈促使 Agent 补齐空标签过滤。",
+  "source": "repo",
+  "editable": [
+    "tags.py"
+  ],
+  "development_tests": [
+    "tests"
+  ],
+  "regression_tests": [
+    "tests"
+  ],
+  "issue": "parse_tags 的输入为逗号分隔的标签。要求移除每项首尾空白，忽略空标签，保持顺序和大小写。当前导入会出现带空格的标签和空项，请修复。",
+  "demo_config": {
+    "file": "tags.py",
+    "hypothesis": "split 会原样保留标签两端空白；先验证 strip 是否能消除失败，空项问题由后续测试检查。",
+    "first_patch": {
+      "old": "return text.split(\",\")",
+      "new": "return [tag.strip() for tag in text.split(\",\")]"
+    },
+    "refinement": {
+      "old": "return [tag.strip() for tag in text.split(\",\")]",
+      "new": "return [tag.strip() for tag in text.split(\",\") if tag.strip()]"
+    }
+  },
+  "required_acceptance_tests": [
+    "_acceptance/test_acceptance.py::test_required_behavior[empty]",
+    "_acceptance/test_acceptance.py::test_required_behavior[blank]",
+    "_acceptance/test_acceptance.py::test_required_behavior[duplicates]",
+    "_acceptance/test_acceptance.py::test_required_behavior[whitespace]"
+  ],
+  "required_regression_tests": [
+    "tests/test_tags.py::test_strip_spaces",
+    "tests/test_tags.py::test_ignore_empty",
+    "tests/test_tags.py::test_keep_case_and_order"
+  ]
+}
