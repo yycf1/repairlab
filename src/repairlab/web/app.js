@@ -32,7 +32,17 @@ function buildWorkspaceMenu() {
   if (edit) edit.onclick = async () => { closeWorkspaceMenu(); try { openRepositoryDialog(await api(`/api/repositories/${state.workspace}`)); } catch(e) { $('form-error').textContent = e.message; } };
 }
 function closeWorkspaceMenu() { $('workspace-menu').classList.add('hidden'); }
-$('workspace-select').onclick = (e) => { e.stopPropagation(); $('workspace-menu').classList.toggle('hidden'); };
+$('workspace-select').onclick = (e) => {
+  e.stopPropagation();
+  const menu = $('workspace-menu');
+  if (menu.classList.contains('hidden')) {
+    const rect = $('workspace-select').getBoundingClientRect();
+    menu.style.top = rect.bottom + 8 + 'px';
+    menu.style.left = rect.left + 'px';
+    menu.style.width = Math.max(rect.width, 300) + 'px';
+  }
+  menu.classList.toggle('hidden');
+};
 document.addEventListener('click', (e) => { if (!e.target.closest('#workspace-menu')) closeWorkspaceMenu(); });
 function setWorkspace(id, { keepComposer = false } = {}) {
   state.workspace = id;
@@ -53,6 +63,7 @@ function setWorkspace(id, { keepComposer = false } = {}) {
   $('allow-local').checked = false;
   if (!keepComposer) $('composer-text').value = '';
   setTaskKind();
+  buildWorkspaceMenu();
   refreshTasks().catch(() => {});
 }
 async function refreshRepositories(selected) {
