@@ -171,7 +171,6 @@ async function refreshTasks() {
   $('task-list').querySelectorAll('button').forEach(b => b.onclick = () => openTask(b.dataset.id));
 }
 function renderTask(task) {
-  $('empty').classList.add('hidden'); $('run-content').classList.remove('hidden');
   $('run-title').textContent = task.title;
   $('status').textContent = statusNames[task.status] || task.status;
   $('status').className = 'status ' + task.status;
@@ -182,9 +181,9 @@ function renderTask(task) {
   $('cancel').classList.toggle('hidden', terminal.has(task.status));
   $('resume').classList.toggle('hidden', !(task.status === 'interrupted' && task.resumeable));
   const canFollowUp = terminal.has(task.status);
-  $('chat-input').classList.toggle('hidden', task.mode !== 'model');
+  $('chat-dock').classList.toggle('hidden', task.mode !== 'model');
   $('follow-up-text').disabled = !canFollowUp; $('send-follow-up').disabled = !canFollowUp;
-  $('follow-up-text').placeholder = canFollowUp ? '追加指令：描述下一步要做的事，Agent 会在同一工作区继续…' : 'Agent 执行中，本轮结束后可继续下达指令…';
+  $('follow-up-text').placeholder = canFollowUp ? '追加指令，Agent 在同一工作区继续…' : 'Agent 执行中，本轮结束后可继续下达指令…';
   renderWorkflow(task.workflow);
   renderCandidates(task.workflow, task.id);
   if (task.patch) {
@@ -268,9 +267,19 @@ function appendEvent(event) {
   el.innerHTML = `<div class="event-top"><span class="event-title">${escape(title)}</span>${d.step ? `<span>STEP ${d.step}</span>` : ''}</div><p>${escape(detail)}</p><details><summary>查看记录</summary><pre>${escape(JSON.stringify(d, null, 2))}</pre></details>`;
   $('timeline').appendChild(el);
 }
+function showHero() {
+  if (state.stream) state.stream.close();
+  state.selected = null;
+  $('hero').classList.remove('hidden'); $('run-panel').classList.add('hidden');
+  $('new-task').classList.add('active');
+  refreshTasks().catch(() => {});
+}
+$('new-task').onclick = showHero;
 async function openTask(id) {
   if (state.stream) state.stream.close();
   state.selected = id; state.cursor = 0; state.eventIds.clear();
+  $('hero').classList.add('hidden'); $('run-panel').classList.remove('hidden');
+  $('new-task').classList.remove('active'); window.scrollTo(0, 0);
   $('timeline').innerHTML = ''; $('plan').classList.add('hidden'); $('patch').textContent = '提交后显示补丁。';
   $('verification').textContent = '独立验收结果尚未生成。';
   $('download-patch').classList.add('hidden'); $('download-report').classList.add('hidden');
@@ -301,6 +310,7 @@ async function openTask(id) {
       }
     };
   }
+  const pane = $('tab-timeline'); pane.scrollTop = pane.scrollHeight;
   await refreshTasks();
 }
 $('fixture').onchange = setFixture; $('backend').onchange = setBackend; $('mode').onchange = setMode;

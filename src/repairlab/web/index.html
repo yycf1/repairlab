@@ -9,45 +9,43 @@
   <aside class="sidebar">
     <a class="brand" href="/"><span class="brand-mark">R<span>↗</span></span><span>修码工坊<small>REPAIRLAB</small></span></a>
     <div class="nav-label">WORKSPACE</div>
-    <div class="nav-item active"><span>◈</span> 修复工作台 <span class="nav-count">01</span></div>
+    <button id="new-task" class="nav-item nav-button active"><span>✎</span> 新任务</button>
     <div class="section-top"><span>最近任务</span><button id="refresh" title="刷新任务">↻</button></div>
     <div id="task-list" class="task-list"><p class="quiet">尚无任务</p></div>
     <div class="sidebar-foot"><span class="online-dot"></span> 本地工作空间 <small>v0.1</small></div>
   </aside>
   <main>
     <header class="topbar"><span>工作空间 <b>/</b> 代码修复</span><div id="model-status" class="chip">检查模型配置…</div></header>
-    <section class="page-intro"><div><span class="eyebrow">OBSERVE · INVESTIGATE · VERIFY</span><h1>让每一次修复，都有据可查。</h1><p>自主检查代码，验证问题假设，跟随工具反馈调整计划并完成修复。</p></div><span class="intro-icon">⌘</span></section>
-    <div class="workspace-grid">
-      <section class="card composer">
-        <div class="card-title"><span class="step-number">01</span><h2>创建任务</h2></div>
+    <section id="hero" class="hero">
+      <div class="hero-greeting"><span class="eyebrow">OBSERVE · INVESTIGATE · VERIFY</span><h1>随时可以开始。</h1><p>选择一个仓库，描述问题或只给一个方向；Agent 在独立工作区中调查、修复并交付可验证的补丁。</p></div>
+      <section class="card hero-composer">
         <label for="fixture">选择代码仓库</label><select id="fixture"></select><p id="fixture-description" class="field-note"></p>
         <div class="repository-actions"><button id="register-repository" class="text-button">＋ 接入本地仓库</button><button id="edit-repository" class="text-button hidden">修改配置</button></div>
         <div id="repository-tools" class="hidden"><p id="repository-source" class="source-note"></p><div class="repository-actions"><button id="check-repository" class="text-button">检查环境</button><button id="collect-repository" class="text-button">收集测试</button></div><div id="repository-preflight" class="preflight" aria-live="polite"></div></div>
-        <label for="task-kind">任务目标</label><select id="task-kind"><option value="repair">修复指定问题</option><option value="inspect">自主检查并修复</option></select>
-        <label id="issue-label" for="issue">问题描述</label><textarea id="issue" rows="4" placeholder="描述预期行为、实际结果，以及复现条件…"></textarea><p id="task-kind-note" class="field-note">根据问题描述定位、复现和修复。</p>
-        <div class="pair"><div><label for="mode">运行方式</label><select id="mode"><option value="demo">脚本演示</option><option value="model">真实模型</option></select></div><div><label for="strategy">修复策略</label><select id="strategy"><option value="feedback">反馈迭代</option><option value="single_shot">单次补丁尝试</option></select></div></div>
-        <label for="backend">执行环境</label><select id="backend"><option value="docker">Docker 隔离环境</option><option value="local">本地执行 · 仅可信仓库</option></select>
+        <div class="config-row"><div><label for="task-kind">任务目标</label><select id="task-kind"><option value="repair">修复指定问题</option><option value="inspect">自主检查并修复</option></select></div><div><label for="backend">执行环境</label><select id="backend"><option value="docker">Docker 隔离环境</option><option value="local">本地执行 · 仅可信仓库</option></select></div></div>
+        <label id="issue-label" for="issue">问题描述</label><textarea id="issue" rows="3" placeholder="描述预期行为、实际结果，以及复现条件…（自主检查可留空）"></textarea><p id="task-kind-note" class="field-note">根据问题描述定位、复现和修复。</p>
+        <div class="config-row"><div><label for="mode">运行方式</label><select id="mode"><option value="demo">脚本演示</option><option value="model">真实模型</option></select></div><div><label for="strategy">修复策略</label><select id="strategy"><option value="feedback">反馈迭代</option><option value="single_shot">单次补丁尝试</option></select></div></div>
         <label id="local-consent" class="consent hidden"><input type="checkbox" id="allow-local"><span>此仓库可信，我允许在本机运行测试。此方式没有容器隔离。</span></label>
         <div class="mode-note" id="mode-note"><span>ⓘ</span><p>脚本演示使用预设动作检查流程，不代表大模型修复能力。</p></div>
         <details class="limits"><summary>任务预算 <span>自定义执行边界</span></summary><div class="pair"><div><label for="steps">最大决策步数</label><input id="steps" type="number" min="1" max="60" value="20"></div><div><label for="timeout">单次测试超时 / 秒</label><input id="timeout" type="number" min="1" max="120" value="30"></div></div></details>
-        <button id="start" class="primary">启动修复 <span>↗</span></button><p id="form-error" class="error-message" role="alert"></p>
+        <button id="start" class="primary">启动任务 <span>↗</span></button><p id="form-error" class="error-message" role="alert"></p>
       </section>
-      <section class="card run-panel">
-        <div class="run-heading"><div class="card-title"><span class="step-number">02</span><h2>任务执行</h2></div><span id="status" class="status idle">等待任务</span></div>
-        <div id="empty" class="empty-state"><div class="empty-icon">⌁</div><h3>从理解代码开始</h3><p>选择仓库，自主检查或修复指定问题，查看调查证据、计划和工具反馈。</p><div class="flow-labels"><span>观察</span><i>→</i><span>假设</span><i>→</i><span>复现</span><i>→</i><span>验证</span></div></div>
-        <div id="run-content" class="hidden">
+    </section>
+    <section id="run-panel" class="card run-panel hidden">
+      <div class="run-heading"><div class="card-title"><span class="step-number">02</span><h2>任务工作区</h2></div><span id="status" class="status idle">等待任务</span></div>
+      <div id="run-content">
           <div class="run-summary"><h3 id="run-title"></h3><div id="run-meta"></div></div>
           <div id="workflow" class="workflow hidden" aria-live="polite"></div>
           <div id="candidates" class="candidates hidden" aria-live="polite"></div>
           <div class="metrics"><div><span>决策调用</span><strong id="metric-calls">—</strong></div><div><span>Token 用量</span><strong id="metric-tokens">—</strong></div><div><span>运行耗时</span><strong id="metric-time">—</strong></div></div>
           <div class="tabs"><button class="tab selected" data-tab="timeline">对话</button><button class="tab" data-tab="workspace">工作区</button><button class="tab" data-tab="patch">代码补丁</button><button class="tab" data-tab="verification">验收结果</button><button id="resume" class="cancel hidden">从检查点继续 ↻</button><button id="cancel" class="cancel hidden">停止任务</button></div>
-          <div id="tab-timeline" class="tab-content"><div id="plan" class="plan hidden"></div><div id="timeline" class="timeline"></div><div id="chat-input" class="chat-input hidden"><textarea id="follow-up-text" rows="2" placeholder="追加指令：描述下一步要做的事…"></textarea><div class="chat-input-row"><p id="follow-up-error" class="error-message"></p><button id="send-follow-up" class="primary">发送指令 ↗</button></div></div></div>
+          <div id="tab-timeline" class="tab-content"><div id="plan" class="plan hidden"></div><div id="timeline" class="timeline"></div></div>
           <div id="tab-workspace" class="tab-content hidden"><div class="workspace-browser"><div id="workspace-files" class="workspace-files"></div><pre id="workspace-content" class="code-block">选择左侧文件查看只读内容。</pre></div></div>
           <div id="tab-patch" class="tab-content hidden"><div class="artifact-top"><span>候选补丁</span><a id="download-patch" class="hidden">下载 diff ↗</a></div><pre id="patch" class="code-block">提交后显示补丁。</pre></div>
           <div id="tab-verification" class="tab-content hidden"><div id="verification" class="verification-empty">提交候选补丁后，独立验证器将在干净环境中检查验收用例和回归测试。</div><a id="download-report" class="report-link hidden">下载任务报告 ↗</a></div>
+          <div id="chat-dock" class="chat-dock hidden"><div class="chat-pill"><textarea id="follow-up-text" rows="1" placeholder="追加指令，Agent 在同一工作区继续…"></textarea><button id="send-follow-up" class="send-btn" title="发送指令">↑</button></div><p id="follow-up-error" class="error-message"></p></div>
         </div>
       </section>
-    </div>
     <footer><span>REPAIRLAB / 代码仓库缺陷修复与验证</span><span>观察 · 行动 · 反馈 · 验收</span></footer>
   </main>
   <dialog id="repository-dialog" aria-labelledby="repository-dialog-title">

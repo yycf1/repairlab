@@ -43,3 +43,21 @@
 .ws-file small { float: right; color: #9aa695; font-size: 10px; }
 #workspace-content { min-height: 320px; max-height: 560px; }
 @media(max-width: 950px) { .workspace-browser { grid-template-columns: 1fr; } .chat-user { margin-left: 16px; } }
+
+/* ChatGPT-style two-state layout: hero composer when idle, workspace when a task is selected. */
+button.nav-item { width: 100%; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.hero { max-width: 880px; margin: 0 auto; padding: 7vh 0 40px; display: flex; flex-direction: column; gap: 26px; }
+.hero-greeting { text-align: center; }
+.hero-greeting h1 { font-size: 31px; letter-spacing: -.4px; font-weight: 600; margin: 10px 0 8px; }
+.hero-greeting p { font-size: 13px; color: var(--muted); margin: 0; }
+.hero-composer { padding: 26px 28px; }
+.config-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+#run-panel { max-width: 1000px; margin: 26px auto 30px; }
+.chat-user { margin: 0 0 16px auto; max-width: 82%; background: #e7f1fb; color: #20303c; border-radius: 14px 14px 3px 14px; padding: 11px 15px; font-size: 12.5px; line-height: 1.75; }
+.chat-dock { position: sticky; bottom: 10px; margin-top: 16px; z-index: 5; }
+.chat-pill { display: flex; align-items: flex-end; gap: 10px; background: #fff; border: 1px solid #dfe4dc; border-radius: 26px; box-shadow: 0 8px 28px #2439291f; padding: 10px 12px; }
+#follow-up-text { flex: 1; border: 0; box-shadow: none; background: transparent; min-height: 26px; max-height: 150px; resize: none; padding: 5px 8px; font-size: 13px; }
+#follow-up-text:focus { box-shadow: none; }
+.send-btn { width: 38px; height: 38px; border-radius: 50%; background: var(--green); color: #fff; font-size: 17px; line-height: 1; flex-shrink: 0; }
+.send-btn:disabled { opacity: .45; cursor: wait; }
+@media(max-width: 1150px) { .hero { padding: 4vh 0 26px; } .hero-greeting h1 { font-size: 26px; } }
