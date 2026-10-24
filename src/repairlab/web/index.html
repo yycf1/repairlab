@@ -24,9 +24,9 @@
     <div class="topbar-title"><strong id="run-title-sm">未选择任务</strong><span id="run-meta"></span><span id="status" class="status idle">新任务</span></div>
     <nav class="topbar-tabs">
       <button class="tab selected" data-tab="timeline">对话</button>
-      <button class="tab" data-tab="workspace">工作区</button>
+      <button class="tab" data-tab="workspace">工作区文件</button>
       <button class="tab" data-tab="patch">补丁</button>
-      <button class="tab" data-tab="verification">验收</button>
+      <button class="tab" data-tab="verification">验收结果</button>
     </nav>
     <div class="topbar-actions">
       <button id="resume" class="cancel hidden">从检查点继续 ↻</button>
@@ -51,9 +51,9 @@
           <div id="plan" class="plan hidden"></div>
           <div id="timeline" class="timeline"></div>
         </div>
-        <div id="tab-workspace" class="tab-content hidden"><div class="workspace-browser"><div class="workspace-pane"><div id="workspace-files" class="workspace-files"></div></div><div class="workspace-pane"><div id="workspace-file-head" class="workspace-file-head hidden"></div><pre id="workspace-content" class="workspace-view">选择左侧文件查看只读内容。</pre></div></div></div>
-        <div id="tab-patch" class="tab-content hidden"><div class="artifact-top"><span>候选补丁</span><a id="download-patch" class="hidden">下载 diff ↗</a></div><pre id="patch" class="code-block">提交后显示补丁。</pre></div>
-        <div id="tab-verification" class="tab-content hidden"><div id="verification" class="verification-empty">提交候选补丁后，独立验证器将在干净环境中检查验收用例和回归测试。</div><a id="download-report" class="report-link hidden">下载任务报告 ↗</a></div>
+        <div id="tab-workspace" class="tab-content hidden"><p class="tab-hint">Agent 在这个任务的<strong>独立副本</strong>里读代码、改代码；这里只读浏览该副本的当前内容，你的原始仓库不受影响。</p><div class="workspace-browser"><div class="workspace-pane"><div id="workspace-files" class="workspace-files"></div></div><div class="workspace-pane"><div id="workspace-file-head" class="workspace-file-head hidden"></div><pre id="workspace-content" class="workspace-view">选择左侧文件查看只读内容。</pre></div></div></div>
+        <div id="tab-patch" class="tab-content hidden"><p class="tab-hint"><strong>补丁</strong> = Agent 全部代码修改汇总成的一份 Git diff（相对原始快照，绿行新增、红行删除）。它是任务的交付物，验收通过后可下载应用到真实仓库。</p><div class="artifact-top"><span>候选补丁</span><a id="download-patch" class="hidden">下载 diff ↗</a></div><pre id="patch" class="code-block">提交后显示补丁。</pre></div>
+        <div id="tab-verification" class="tab-content hidden"><p class="tab-hint"><strong>独立验收</strong> = 把补丁应用到一份 Agent 碰不到的干净副本，重跑验收与回归测试并逐项核对 pytest 证据；这是补丁能否交付的最终裁判，Agent 自己报告的"完成"不算数。</p><div id="verification" class="verification-empty">提交候选补丁后，独立验证器将在干净环境中检查验收用例和回归测试。</div><a id="download-report" class="report-link hidden">下载任务报告 ↗</a></div>
       </div>
     </section>
   </div>
