@@ -10,10 +10,12 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from repairlab.models import DirectoryDiscovery, DirectoryPick, ModelSettingsUpdate, RepositoryCheck, RepositoryRegistration, StartRequest
+from repairlab.models import (DirectoryDiscovery, DirectoryPick, FollowUpRequest, ModelSettingsUpdate,
+                              RepoProfile, RepositoryCheck, RepositoryRegistration, StartRequest)
 from repairlab.directory_picker import choose_directory
 from repairlab.discovery import discover_repository
 from repairlab.model_config import PROVIDERS, apply_to_process, public_model_settings, test_connection, write_env_config
+from repairlab.repository import Repository
 from repairlab.service import Service, TERMINAL
 from repairlab.settings import Settings
 
@@ -174,6 +176,35 @@ def create_app(settings=None):
         try:
             return service().resume(task_id)
         except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
+
+    @app.post("/api/tasks/{task_id}/follow-up")
+    def follow_up(task_id: str, request: FollowUpRequest):
+        task_or_404(task_id)
+        try:
+            return service().follow_up(task_id, request.text)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
+
+    def workspace_repository(task):
+        workspace = settings.data_dir / "tasks" / task["id"] / "workspace"
+        if not workspace.exists():
+            raise HTTPException(404, "工作区尚未创建")
+        return Repository(workspace, RepoProfile.model_validate(task["repository_profile"]))
+
+    @app.get("/api/tasks/{task_id}/workspace/files")
+    def workspace_files(task_id: str):
+        task = task_or_404(task_id)
+        repo = workspace_repository(task)
+        files = [{"path": name, "size": repo.path(name).stat().st_size} for name in repo.files()]
+        return {"files": files}
+
+    @app.get("/api/tasks/{task_id}/workspace/file")
+    def workspace_file(task_id: str, path: str):
+        task = task_or_404(task_id)
+        try:
+            return workspace_repository(task).read(path, 1, 400)
+        except (ValueError, OSError) as exc:
             raise HTTPException(400, str(exc)) from None
 
     @app.get("/api/tasks/{task_id}/events")

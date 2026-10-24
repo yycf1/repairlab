@@ -163,7 +163,8 @@ FIRST_PHASE = [
 def run_partial_task(settings, service, max_steps=5):
     """Five productive steps then stop; simulates the state a crash would leave behind."""
     model = ScriptedModel(FIRST_PHASE)
-    task = service.start(StartRequest(backend="local", allow_local=True, limits=Limits(max_steps=max_steps)),
+    task = service.start(StartRequest(backend="local", allow_local=True, mode="model",
+                                      limits=Limits(max_steps=max_steps)),
                          background=False, model_override=model)
     task_dir = settings.data_dir / "tasks" / task["id"]
     assert (task_dir / "artifacts" / "checkpoint.json").exists()
@@ -232,5 +233,51 @@ def test_recover_interrupted_marks_checkpointed_tasks_resumeable(settings):
         assert service.store.get(task["id"])["resumeable"] is True
         assert service.store.get("bare-restart")["resumeable"] is False
         assert service.store.get("bare-restart")["status"] == "interrupted"
+    finally:
+        service.close()
+
+
+def test_follow_up_completes_task_in_same_workspace(settings):
+    service = Service(settings)
+    try:
+        task, task_dir = run_partial_task(settings, service)
+        baseline_before = (task_dir / "baseline" / "pricing.py").read_text(encoding="utf-8")
+        continuation = ScriptedModel([decision("run_tests"), decision("get_patch"),
+                                      decision("submit", summary="追加轮提交候选补丁")])
+        followed = service.follow_up(task["id"], "继续完成修复并提交",
+                                     model_override=continuation)
+        assert followed["status"] in {"queued", "running"}
+        final = wait_for_terminal(service, task["id"])
+        assert final["status"] == "passed", final
+        assert final["verification"]["passed"]
+        assert final["round"] == 2
+        assert final["model_calls"] == 8  # round usage accumulates across rounds (5 + 3)
+        assert final["tokens"]["prompt"] >= 0
+        instructions = [e for e in service.store.events(task["id"]) if e["kind"] == "instruction"]
+        assert len(instructions) == 1 and instructions[0]["data"]["round"] == 2
+        assert instructions[0]["data"]["text"] == "继续完成修复并提交"
+        # The baseline snapshot is never rebuilt for follow-up rounds.
+        assert (task_dir / "baseline" / "pricing.py").read_text(encoding="utf-8") == baseline_before
+    finally:
+        service.close()
+
+
+def test_follow_up_rejects_demo_running_and_tampered_workspace(settings):
+    service = Service(settings)
+    try:
+        demo = service.start(StartRequest(backend="local", allow_local=True), background=False)
+        assert demo["status"] == "passed"
+        with pytest.raises(ValueError, match="脚本演示"):
+            service.follow_up(demo["id"], "继续")
+        task, task_dir = run_partial_task(settings, service)
+        service.store.update(task["id"], status="running")
+        with pytest.raises(ValueError, match="结束"):
+            service.follow_up(task["id"], "继续")
+        service.store.update(task["id"], status="budget_exhausted")
+        (task_dir / "workspace" / "pricing.py").write_text("def price(q):\n    return 0  # tampered\n", encoding="utf-8")
+        with pytest.raises(ValueError, match="工作区"):
+            service.follow_up(task["id"], "继续")
+        with pytest.raises(ValueError, match="不能为空"):
+            service.follow_up(task["id"], "  ")
     finally:
         service.close()

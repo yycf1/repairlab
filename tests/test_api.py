@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 from repairlab.api import create_app
 from repairlab.model import ScriptedModel
-from repairlab.models import StartRequest
+from repairlab.models import Limits, StartRequest
 
 
 def test_api_history_sse_and_artifacts(settings):
@@ -43,3 +43,22 @@ def test_resume_endpoint_validates_state(settings):
         response = client.post(f"/api/tasks/{task['id']}/resume")
         assert response.status_code == 400
         assert "检查点" in response.json()["detail"]
+
+
+def test_workspace_browser_endpoints(settings):
+    with TestClient(create_app(settings)) as client:
+        task = client.app.state.service.start(StartRequest(backend="local", allow_local=True, limits=Limits(max_steps=2)),
+            background=False, model_override=ScriptedModel([{"action": {"tool": "list_files"}}]))
+        files = client.get(f"/api/tasks/{task['id']}/workspace/files")
+        assert files.status_code == 200
+        paths = [f["path"] for f in files.json()["files"]]
+        assert "pricing.py" in paths and "tests/test_pricing.py" in paths
+        content = client.get(f"/api/tasks/{task['id']}/workspace/file", params={"path": "pricing.py"})
+        assert content.status_code == 200 and "quantity" in content.json()["text"]
+        assert client.get(f"/api/tasks/{task['id']}/workspace/file",
+                          params={"path": "../baseline/pricing.py"}).status_code == 400
+        assert client.get(f"/api/tasks/{task['id']}/workspace/file",
+                          params={"path": "tests/test_pricing.py"}).status_code == 200
+        assert client.get("/api/tasks/0123456789abcdef/workspace/files").status_code == 404
+        follow_up = client.post(f"/api/tasks/{task['id']}/follow-up", json={"text": ""})
+        assert follow_up.status_code == 422  # empty instruction rejected by the request model

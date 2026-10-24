@@ -129,17 +129,27 @@ class RepairAgent(DefaultAgent):
              "extra": {"exit_status": "error", "submission": "", "error_type": type(error).__name__}})
 
     def resume_run(self, issue, state, messages):
-        """Continue an interrupted run from a checkpoint.
-
-        The loop body mirrors DefaultAgent.run() line by line; the vendored module is pinned
-        upstream and must not be modified, so the resume path keeps its own copy in sync.
-        """
+        """Continue an interrupted run from a checkpoint (counters and wall clock restored)."""
         self.extra_template_vars |= {"task": issue}
         self.messages = [dict(message) for message in messages]
         self.n_calls = state["n_calls"]
         self.cost = state.get("cost", 0.0)
         self.n_consecutive_format_errors = state.get("n_consecutive_format_errors", 0)
         self._start_time = time.time() - state.get("elapsed_seconds", 0.0)
+        return self._loop()
+
+    def continue_run(self, issue, instruction, messages):
+        """Start a follow-up round in the same workspace: full history, brand-new round budget."""
+        self.extra_template_vars |= {"task": issue}
+        self.messages = [dict(message) for message in messages]
+        self.edit_attempts = 0
+        self.add_messages({"role": "user",
+                           "content": f"【用户追加指令】{instruction}\n把它纳入当前计划并继续；如与已完成的工作冲突，先说明再行动。"})
+        return self._loop()
+
+    def _loop(self):
+        """The DefaultAgent.run() loop body, mirrored line by line; the vendored module is pinned
+        upstream and must not be modified, so every in-process entry point shares this copy."""
         while True:
             try:
                 self.step()

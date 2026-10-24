@@ -115,7 +115,7 @@ class Service:
             "backend": request.backend, "strategy": request.strategy, "task_kind": request.task_kind, "limits": request.limits.model_dump(),
             "model": self.settings.model if request.mode == "model" else "scripted-demo",
             "fixture": request.fixture, "tokens": {"prompt": 0, "completion": 0},
-            "allow_local": request.allow_local, "resumeable": False,
+            "allow_local": request.allow_local, "resumeable": False, "round": 1,
             "repository_profile": profile.model_dump(exclude={"demo"}), "preflight": preflight})
         cancel = threading.Event()
         self.cancellations[task_id] = cancel
@@ -124,6 +124,42 @@ class Service:
             self.pool.submit(self.run, *args)
         else:
             self.run(*args)
+        return self.store.get(task_id)
+
+    def follow_up(self, task_id, text, *, model_override=None):
+        """Continue a finished task in the same workspace with a new user instruction.
+
+        Follow-up rounds are real-model only: scripted demos replay a fixed decision list.
+        The workspace digest must still match the checkpoint, so hand-edited workspaces are refused.
+        """
+        task = self.store.get(task_id)
+        text = (text or "").strip()
+        if task is None or task["status"] not in TERMINAL:
+            raise ValueError("任务不存在或尚未结束，无法追加指令。")
+        if task.get("mode") != "model":
+            raise ValueError("脚本演示使用固定脚本，不支持追加指令；请创建真实模型任务。")
+        if not text:
+            raise ValueError("追加指令不能为空。")
+        task_dir = self.settings.data_dir / "tasks" / task_id
+        checkpoint = load_checkpoint(task_dir / "artifacts" / "checkpoint.json")
+        trajectory = task_dir / "artifacts" / "trajectory.json"
+        if checkpoint is None or not trajectory.exists():
+            raise ValueError("缺少执行现场；请创建新任务。")
+        profile = RepoProfile.model_validate(task["repository_profile"])
+        if source_digest(Repository(task_dir / "workspace", profile)) != checkpoint.get("source_digest"):
+            raise ValueError("工作区内容与执行现场不一致；无法追加指令，请创建新任务。")
+        request = StartRequest(fixture=task.get("fixture") or "boundary-discount", issue=task["issue"],
+                               mode="model", backend=task["backend"], strategy=task["strategy"],
+                               task_kind=task["task_kind"], allow_local=task.get("allow_local", False),
+                               limits=Limits(**task["limits"]))
+        cancel = threading.Event()
+        self.cancellations[task_id] = cancel
+        round_number = int(task.get("round") or 1) + 1
+        self.store.update(task_id, status="queued", resumeable=False, round=round_number)
+        self.store.event(task_id, "instruction", {"text": text, "round": round_number})
+        self.pool.submit(self._execute, task_id, request, profile, None, task["issue"],
+                         make_runner(request.backend, request.allow_local), cancel, model_override,
+                         checkpoint, text)
         return self.store.get(task_id)
 
     def run(self, task_id, request, profile, demo_config, issue, runner, cancel, model_override):
@@ -159,7 +195,7 @@ class Service:
         return self.store.get(task_id)
 
     def _execute(self, task_id, request, profile, demo_config, issue, runner, cancel, model_override,
-                 checkpoint=None):
+                 checkpoint=None, follow_up=None):
         task_dir = self.settings.data_dir / "tasks" / task_id
         if checkpoint is None:
             task_dir.mkdir(parents=True)
@@ -173,7 +209,9 @@ class Service:
         try:
             self.store.update(task_id, status="running", resumeable=False)
             emit("started", {"mode": request.mode, "backend": runner.name, "strategy": request.strategy,
-                             "resumed": checkpoint is not None})
+                             "resumed": checkpoint is not None and not follow_up,
+                             "follow_up": follow_up is not None,
+                             "round": (self.store.get(task_id) or {}).get("round")})
             baseline, workspace = task_dir / "baseline", task_dir / "workspace"
             if checkpoint is None:
                 copy_repository(Path(profile.source), baseline)
@@ -183,14 +221,18 @@ class Service:
             if checkpoint is not None:
                 environment.restore_extra_state(checkpoint["environment"])
                 environment.state = WorkflowState.model_validate(checkpoint["workflow"])
+                if follow_up:
+                    # A new round keeps evidence and revision; phase restarts from active work.
+                    environment.state.phase = ("investigating" if environment.state.task_kind == "inspect"
+                                               else "repairing")
 
             def on_delta(step, text, seq):
                 emit("model_output", {"step": step, "delta": text, "seq": seq})
 
             model = model_override or (DemoModel(demo_config, request.strategy) if request.mode == "demo"
                                       else CompatibleModel(self.settings, request.limits, on_delta=on_delta))
-            if checkpoint is not None and model_override is None:
-                # A task-native model continues its usage counters; an injected override starts fresh.
+            if checkpoint is not None and model_override is None and not follow_up:
+                # Interrupted resumes continue counters; fresh rounds and injected models start over.
                 model.restore(checkpoint["model"])
             controller = RepairAgent(model, environment, request.limits, emit, cancel, request.strategy,
                                      checkpoint_path=task_dir / "artifacts" / "checkpoint.json",
@@ -199,9 +241,10 @@ class Service:
                 result = controller.run(issue)
             else:
                 trajectory = json.loads((task_dir / "artifacts" / "trajectory.json").read_text(encoding="utf-8"))
-                result = controller.resume_run(issue, checkpoint["agent"], trajectory["messages"])
-            self.store.update(task_id, model_calls=model.model_calls, tokens=dict(model.tokens),
-                              plan=environment.plan, test_runs=environment.test_runs)
+                if follow_up:
+                    result = controller.continue_run(issue, follow_up, trajectory["messages"])
+                else:
+                    result = controller.resume_run(issue, checkpoint["agent"], trajectory["messages"])
             if cancel.is_set() or result.get("exit_status") == "cancelled":
                 self.store.update(task_id, status="cancelled", result="任务已取消")
                 return
@@ -227,7 +270,16 @@ class Service:
             emit("error", {"type": type(error).__name__})
         finally:
             if model is not None:
-                self.store.update(task_id, model_calls=model.model_calls, tokens=dict(model.tokens))
+                if follow_up:
+                    # Round budgets are fresh by design; recorded task usage accumulates across rounds.
+                    prior = self.store.get(task_id)
+                    prior_tokens = prior.get("tokens") or {}
+                    self.store.update(task_id,
+                        model_calls=(prior.get("model_calls") or 0) + model.model_calls,
+                        tokens={"prompt": (prior_tokens.get("prompt") or 0) + model.tokens["prompt"],
+                                "completion": (prior_tokens.get("completion") or 0) + model.tokens["completion"]})
+                else:
+                    self.store.update(task_id, model_calls=model.model_calls, tokens=dict(model.tokens))
             if environment is not None:
                 self.store.update(task_id, workflow=environment.state.snapshot(environment.digest()),
                                   plan=environment.plan, test_runs=environment.test_runs,

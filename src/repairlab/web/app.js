@@ -181,6 +181,10 @@ function renderTask(task) {
   $('metric-time').textContent = task.seconds != null ? task.seconds + 's' : '进行中';
   $('cancel').classList.toggle('hidden', terminal.has(task.status));
   $('resume').classList.toggle('hidden', !(task.status === 'interrupted' && task.resumeable));
+  const canFollowUp = terminal.has(task.status);
+  $('chat-input').classList.toggle('hidden', task.mode !== 'model');
+  $('follow-up-text').disabled = !canFollowUp; $('send-follow-up').disabled = !canFollowUp;
+  $('follow-up-text').placeholder = canFollowUp ? '追加指令：描述下一步要做的事，Agent 会在同一工作区继续…' : 'Agent 执行中，本轮结束后可继续下达指令…';
   renderWorkflow(task.workflow);
   renderCandidates(task.workflow, task.id);
   if (task.patch) {
@@ -244,6 +248,13 @@ function appendEvent(event) {
     return;
   }
   if (event.kind === 'thinking') return;
+  if (event.kind === 'instruction') {
+    const divider = document.createElement('div'); divider.className = 'round-divider';
+    divider.innerHTML = `<span>第 ${d.round} 轮 · 用户追加指令</span>`;
+    const bubble = document.createElement('div'); bubble.className = 'chat-user'; bubble.innerHTML = `<p>${escape(d.text)}</p>`;
+    $('timeline').append(divider, bubble);
+    return;
+  }
   if (event.kind === 'model_output') {
     const bubble = streamBubble(d.step), body = bubble.querySelector('pre');
     if (d.delta == null) body.textContent = '输出中断，正在重试…';
@@ -251,7 +262,7 @@ function appendEvent(event) {
     return;
   }
   if (event.kind === 'action' || event.kind === 'format_error') document.getElementById('stream-' + d.step)?.remove();
-  const title = event.kind === 'action' ? tools[d.action.tool] : event.kind === 'observation' ? (d.ok ? '获得执行反馈' : '发现问题，等待调整') : event.kind === 'started' ? (d.resumed ? '任务续跑' : '任务开始') : ({format_error:'动作格式需修正', verification_started:'开始独立验收', verification:'验收完成', finished:'任务结束', error:'执行异常', cancel_requested:'请求停止', interrupted:'服务重启'}[event.kind] || event.kind);
+  const title = event.kind === 'action' ? tools[d.action.tool] : event.kind === 'observation' ? (d.ok ? '获得执行反馈' : '发现问题，等待调整') : event.kind === 'started' ? (d.follow_up ? `第 ${d.round || 2} 轮开始` : d.resumed ? '任务续跑' : '任务开始') : ({format_error:'动作格式需修正', verification_started:'开始独立验收', verification:'验收完成', finished:'任务结束', error:'执行异常', cancel_requested:'请求停止', interrupted:'服务重启'}[event.kind] || event.kind);
   const detail = event.kind === 'action' ? d.note : event.kind === 'observation' ? (d.error || d.category) : d.detail || d.note || statusNames[d.status] || '';
   const el = document.createElement('div'); el.className = 'event' + (d.ok === false || ['error','format_error'].includes(event.kind) ? ' error' : '');
   el.innerHTML = `<div class="event-top"><span class="event-title">${escape(title)}</span>${d.step ? `<span>STEP ${d.step}</span>` : ''}</div><p>${escape(detail)}</p><details><summary>查看记录</summary><pre>${escape(JSON.stringify(d, null, 2))}</pre></details>`;
@@ -268,6 +279,12 @@ async function openTask(id) {
   const task = await api(`/api/tasks/${id}`);
   if (state.selected !== id) return;
   renderTask(task);
+  workspaceLoadedFor = null; $('workspace-files').innerHTML = ''; $('workspace-content').textContent = '选择左侧文件查看只读内容。';
+  if (task.issue) {
+    const divider = document.createElement('div'); divider.className = 'round-divider'; divider.innerHTML = '<span>第 1 轮 · 任务描述</span>';
+    const bubble = document.createElement('div'); bubble.className = 'chat-user'; bubble.innerHTML = `<p>${escape(task.issue)}</p>`;
+    $('timeline').append(divider, bubble);
+  }
   const events = await api(`/api/tasks/${id}/events`);
   if (state.selected !== id) return;
   events.forEach(appendEvent);
@@ -320,6 +337,18 @@ $('resume').onclick = async () => {
   } catch (e) { $('form-error').textContent = e.message; }
   finally { $('resume').disabled = false; }
 };
+$('send-follow-up').onclick = async () => {
+  const text = $('follow-up-text').value.trim();
+  $('follow-up-error').textContent = '';
+  if (!text || !state.selected) return;
+  $('send-follow-up').disabled = true;
+  try {
+    const task = await api(`/api/tasks/${state.selected}/follow-up`, { method: 'POST', body: JSON.stringify({ text }) });
+    $('follow-up-text').value = '';
+    await openTask(task.id); await refreshTasks();
+  } catch (e) { $('follow-up-error').textContent = e.message; }
+  finally { $('send-follow-up').disabled = false; }
+};
 $('start').onclick = async () => {
   $('form-error').textContent = '';
   if ($('backend').value === 'local' && !$('allow-local').checked) { $('form-error').textContent = '请先确认只在本机运行可信代码。'; return; }
@@ -334,9 +363,29 @@ $('start').onclick = async () => {
   } catch(e) { $('form-error').textContent = e.message; }
   finally { $('start').disabled = false; }
 };
+let workspaceLoadedFor = null;
+async function loadWorkspaceFiles(taskId) {
+  if (workspaceLoadedFor === taskId) return;
+  const box = $('workspace-files');
+  box.innerHTML = '<p class="quiet">加载中…</p>';
+  try {
+    const data = await api(`/api/tasks/${taskId}/workspace/files`);
+    workspaceLoadedFor = taskId;
+    box.innerHTML = data.files.length ? data.files.map(f => `<button class="ws-file" data-path="${escape(f.path)}">${escape(f.path)}<small>${f.size} B</small></button>`).join('') : '<p class="quiet">工作区为空。</p>';
+    box.querySelectorAll('button').forEach(b => b.onclick = () => openWorkspaceFile(taskId, b.dataset.path));
+  } catch (e) { box.innerHTML = `<p class="quiet">${escape(e.message)}</p>`; }
+}
+async function openWorkspaceFile(taskId, path) {
+  $('workspace-content').textContent = '加载中…';
+  try {
+    const data = await api(`/api/tasks/${taskId}/workspace/file?path=${encodeURIComponent(path)}`);
+    $('workspace-content').textContent = data.text + (data.total_lines > 400 ? `\n…（共 ${data.total_lines} 行，仅显示前 400 行）` : '');
+  } catch (e) { $('workspace-content').textContent = e.message; }
+}
 document.querySelectorAll('.tab').forEach(button => button.onclick = () => {
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('selected', b === button));
   document.querySelectorAll('.tab-content').forEach(el => el.classList.toggle('hidden', el.id !== 'tab-' + button.dataset.tab));
+  if (button.dataset.tab === 'workspace' && state.selected) loadWorkspaceFiles(state.selected);
 });
 async function renderModelStatus() {
   state.config = await api('/api/config');
