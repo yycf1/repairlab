@@ -141,6 +141,14 @@ def create_app(settings=None):
         task_or_404(task_id)
         return {"requested": service().cancel(task_id)}
 
+    @app.post("/api/tasks/{task_id}/resume")
+    def resume(task_id: str):
+        task_or_404(task_id)
+        try:
+            return service().resume(task_id)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
+
     @app.get("/api/tasks/{task_id}/events")
     def events(task_id: str, after: int = 0):
         task_or_404(task_id)

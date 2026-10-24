@@ -73,12 +73,19 @@ class Store:
                  "data": json.loads(r["data"])} for r in rows]
 
     def recover_interrupted(self):
-        """History survives restart; running tasks are marked interrupted, never silently replayed."""
+        """History survives restart; running tasks are marked interrupted, never silently replayed.
+
+        A task with an on-disk checkpoint (agent loop stage only) is additionally marked resumable.
+        """
         with self.connect() as db:
-            ids = [r[0] for r in db.execute("SELECT id FROM tasks WHERE status IN ('running','queued','verifying')")]
-        for task_id in ids:
-            self.update(task_id, status="interrupted", error="服务已重启；历史可查看，请创建新任务重跑。")
-            self.event(task_id, "interrupted", {"reason": "server_restart"})
+            rows = db.execute("SELECT id,status FROM tasks WHERE status IN ('running','queued','verifying')").fetchall()
+        for row in rows:
+            task_id, status = row["id"], row["status"]
+            checkpoint = self.path.parent / "tasks" / task_id / "artifacts" / "checkpoint.json"
+            resumeable = status in {"running", "queued"} and checkpoint.exists()
+            self.update(task_id, status="interrupted", resumeable=resumeable,
+                        error="服务中断；可从检查点继续执行。" if resumeable else "服务已重启；历史可查看，请创建新任务重跑。")
+            self.event(task_id, "interrupted", {"reason": "server_restart", "resumeable": resumeable})
 
     def save_repository(self, repository_id, data):
         with self.lock, self.connect() as db:

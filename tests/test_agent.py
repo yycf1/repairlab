@@ -1,4 +1,6 @@
+import json
 import threading
+import time
 from types import SimpleNamespace
 import pytest
 from repairlab.agent import RepairAgent
@@ -145,5 +147,90 @@ def test_budget_exit_keeps_unverified_patch_and_evidence(settings):
         assert task["workflow"]["baseline_test"]["category"] == "test_failure"
         assert task["workflow"]["revision"] == 1
         assert (settings.data_dir / "tasks" / task["id"] / "artifacts" / "patch.diff").exists()
+    finally:
+        service.close()
+
+
+FIRST_PHASE = [
+    decision("update_plan", plan=["读取实现", "确认基线失败", "修改并重测", "提交"]),
+    decision("read_file", path="pricing.py"),
+    decision("run_tests"),
+    decision("record_finding", paths=["pricing.py"], summary="阈值应包含第十件"),
+    decision("edit_file", path="pricing.py", old="quantity > 10", new="quantity >= 10"),
+]
+
+
+def run_partial_task(settings, service, max_steps=5):
+    """Five productive steps then stop; simulates the state a crash would leave behind."""
+    model = ScriptedModel(FIRST_PHASE)
+    task = service.start(StartRequest(backend="local", allow_local=True, limits=Limits(max_steps=max_steps)),
+                         background=False, model_override=model)
+    task_dir = settings.data_dir / "tasks" / task["id"]
+    assert (task_dir / "artifacts" / "checkpoint.json").exists()
+    assert (task_dir / "artifacts" / "trajectory.json").exists()
+    return task, task_dir
+
+
+def wait_for_terminal(service, task_id, timeout=60):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        task = service.store.get(task_id)
+        if task["status"] in {"passed", "failed", "error", "blocked", "cancelled", "budget_exhausted", "reviewed"}:
+            return task
+        time.sleep(0.1)
+    return service.store.get(task_id)
+
+
+def test_resume_completes_interrupted_task(settings):
+    service = Service(settings)
+    try:
+        task, task_dir = run_partial_task(settings, service)
+        assert task["status"] == "budget_exhausted"
+        # Simulate a restart mid-run, with the operator extending the step budget before resuming.
+        service.store.update(task["id"], status="interrupted", resumeable=True,
+                             limits={**task["limits"], "max_steps": 12})
+        continuation = ScriptedModel([decision("run_tests"), decision("get_patch"),
+                                      decision("submit", summary="提交候选补丁")])
+        resumed = service.resume(task["id"], model_override=continuation)
+        assert resumed["status"] in {"queued", "running"}
+        final = wait_for_terminal(service, task["id"])
+        assert final["status"] == "passed", final
+        assert final["verification"]["passed"]
+        # The injected continuation model counts only its own three calls.
+        assert final["model_calls"] == 3
+        # Agent-level step accounting continues across the restart: five steps plus three.
+        trajectory = json.loads((task_dir / "artifacts" / "trajectory.json").read_text(encoding="utf-8"))
+        assert trajectory["info"]["model_stats"]["api_calls"] == 8
+        kinds = [e["kind"] for e in service.store.events(task["id"])]
+        assert kinds.count("started") == 2 and kinds[0] == "started"
+        assert "interrupted" not in kinds and "error" not in kinds
+    finally:
+        service.close()
+
+
+def test_resume_rejects_tampered_workspace(settings):
+    service = Service(settings)
+    try:
+        task, task_dir = run_partial_task(settings, service)
+        service.store.update(task["id"], status="interrupted", resumeable=True,
+                             limits={**task["limits"], "max_steps": 12})
+        (task_dir / "workspace" / "pricing.py").write_text("def price(q):\n    return 0  # tampered\n", encoding="utf-8")
+        with pytest.raises(ValueError, match="工作区"):
+            service.resume(task["id"], model_override=ScriptedModel([]))
+    finally:
+        service.close()
+
+
+def test_recover_interrupted_marks_checkpointed_tasks_resumeable(settings):
+    service = Service(settings)
+    try:
+        task, _ = run_partial_task(settings, service)
+        service.store.create("bare-restart", {"issue": "x"})
+        service.store.update(task["id"], status="running")
+        service.store.update("bare-restart", status="running")
+        service.store.recover_interrupted()
+        assert service.store.get(task["id"])["resumeable"] is True
+        assert service.store.get("bare-restart")["resumeable"] is False
+        assert service.store.get("bare-restart")["status"] == "interrupted"
     finally:
         service.close()

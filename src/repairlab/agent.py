@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import time
+
 from repairlab._vendor.mini.agent import DefaultAgent
-from repairlab._vendor.mini.exceptions import UserInterruption, LimitsExceeded, FormatError
+from repairlab._vendor.mini.exceptions import UserInterruption, LimitsExceeded, FormatError, InterruptAgentFlow
+from repairlab.checkpoint import save_checkpoint
 from repairlab.models import Decision
 
 SYSTEM = """你是 RepairLab 仓库诊断与修复 Agent。任务类型由 controller_state.task_kind 指定：repair 修复给定缺陷，inspect 自主调查并修复有证据的问题。
@@ -43,17 +46,37 @@ run_reproducer 先在原始快照运行，只有断言失败才记为 confirmed�
 
 class RepairAgent(DefaultAgent):
     """Real subclass of the pinned upstream loop; project logic lives in adapters and controller hooks."""
-    def __init__(self, model, env, limits, emit, cancel, strategy="feedback"):
+    def __init__(self, model, env, limits, emit, cancel, strategy="feedback", *, checkpoint_path=None,
+                 trajectory_path=None):
         self.limits, self.emit, self.cancel, self.strategy = limits, emit, cancel, strategy
+        self.checkpoint_path = checkpoint_path
         self.edit_attempts = 0
         self.env_state = env.state
         self.env_state.submission_policy = strategy
         prompt = SYSTEM + (INVESTIGATION if self.env_state.task_kind == "inspect" else "")
         super().__init__(model, env, system_template=prompt.replace("{schema}", json.dumps(Decision.model_json_schema())),
                          instance_template="{{ task }}", step_limit=limits.max_steps, cost_limit=0,
-                         wall_time_limit_seconds=limits.max_seconds, output_path=None)
+                         wall_time_limit_seconds=limits.max_seconds, output_path=trajectory_path)
+
+    def write_checkpoint(self):
+        """Persist loop counters, model usage and full workflow evidence, paired with the vendor trajectory."""
+        if self.checkpoint_path is None:
+            return
+        digest = self.env.digest()
+        save_checkpoint(self.checkpoint_path, {
+            "issue": self.extra_template_vars.get("task", ""),
+            "strategy": self.strategy,
+            "agent": {"n_calls": self.n_calls, "cost": self.cost,
+                      "n_consecutive_format_errors": self.n_consecutive_format_errors,
+                      "elapsed_seconds": round(time.time() - self._start_time, 3)},
+            "model": self.model.serialize(),
+            "environment": self.env.export_extra_state(),
+            "workflow": self.env.state.snapshot(digest),
+            "source_digest": digest,
+        })
 
     def query(self):
+        self.write_checkpoint()
         if self.cancel.is_set():
             raise UserInterruption({"role": "exit", "content": "Cancelled", "extra": {"exit_status": "cancelled"}})
         if sum(self.model.tokens.values()) >= self.limits.max_tokens:
@@ -104,3 +127,39 @@ class RepairAgent(DefaultAgent):
         # Do not persist arbitrary provider tracebacks or credential-bearing exception reprs.
         return self.add_messages({"role": "exit", "content": "Agent execution error",
              "extra": {"exit_status": "error", "submission": "", "error_type": type(error).__name__}})
+
+    def resume_run(self, issue, state, messages):
+        """Continue an interrupted run from a checkpoint.
+
+        The loop body mirrors DefaultAgent.run() line by line; the vendored module is pinned
+        upstream and must not be modified, so the resume path keeps its own copy in sync.
+        """
+        self.extra_template_vars |= {"task": issue}
+        self.messages = [dict(message) for message in messages]
+        self.n_calls = state["n_calls"]
+        self.cost = state.get("cost", 0.0)
+        self.n_consecutive_format_errors = state.get("n_consecutive_format_errors", 0)
+        self._start_time = time.time() - state.get("elapsed_seconds", 0.0)
+        while True:
+            try:
+                self.step()
+                self.n_consecutive_format_errors = 0  # reset on any clean step
+            except FormatError as error:
+                self.cost += error.messages[0].get("extra", {}).get("cost", 0.0)
+                self.n_consecutive_format_errors += 1
+                if 0 < self.config.max_consecutive_format_errors <= self.n_consecutive_format_errors:
+                    self.add_messages(*error.messages,
+                        {"role": "exit", "content": "RepeatedFormatError",
+                         "extra": {"exit_status": "RepeatedFormatError", "submission": ""}})
+                else:
+                    self.add_messages(*error.messages)
+            except InterruptAgentFlow as interrupt:
+                self.add_messages(*interrupt.messages)
+            except Exception as error:
+                self.handle_uncaught_exception(error)
+                raise
+            finally:
+                self.save(self.config.output_path)
+            if self.messages[-1].get("role") == "exit":
+                break
+        return self.messages[-1].get("extra", {})

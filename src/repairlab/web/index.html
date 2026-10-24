@@ -40,7 +40,7 @@
           <div id="workflow" class="workflow hidden" aria-live="polite"></div>
           <div id="candidates" class="candidates hidden" aria-live="polite"></div>
           <div class="metrics"><div><span>决策调用</span><strong id="metric-calls">—</strong></div><div><span>Token 用量</span><strong id="metric-tokens">—</strong></div><div><span>运行耗时</span><strong id="metric-time">—</strong></div></div>
-          <div class="tabs"><button class="tab selected" data-tab="timeline">执行轨迹</button><button class="tab" data-tab="patch">代码补丁</button><button class="tab" data-tab="verification">验收结果</button><button id="cancel" class="cancel hidden">停止任务</button></div>
+          <div class="tabs"><button class="tab selected" data-tab="timeline">执行轨迹</button><button class="tab" data-tab="patch">代码补丁</button><button class="tab" data-tab="verification">验收结果</button><button id="resume" class="cancel hidden">从检查点继续 ↻</button><button id="cancel" class="cancel hidden">停止任务</button></div>
           <div id="tab-timeline" class="tab-content"><div id="plan" class="plan hidden"></div><div id="timeline" class="timeline"></div></div>
           <div id="tab-patch" class="tab-content hidden"><div class="artifact-top"><span>候选补丁</span><a id="download-patch" class="hidden">下载 diff ↗</a></div><pre id="patch" class="code-block">提交后显示补丁。</pre></div>
           <div id="tab-verification" class="tab-content hidden"><div id="verification" class="verification-empty">提交候选补丁后，独立验证器将在干净环境中检查验收用例和回归测试。</div><a id="download-report" class="report-link hidden">下载任务报告 ↗</a></div>

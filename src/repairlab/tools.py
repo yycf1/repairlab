@@ -20,10 +20,20 @@ class PolicyError(ValueError):
         self.code = code
 
 
+def source_digest(repo):
+    """Content fingerprint over editable files; the revision-bound evidence key."""
+    fingerprint = hashlib.sha256()
+    for name in repo.files():
+        if repo.editable(name):
+            fingerprint.update(name.encode() + b"\0" + repo.path(name).read_bytes() + b"\0")
+    return fingerprint.hexdigest()
+
+
 class ToolEnvironment:
     def __init__(self, repo: Repository, runner, limits, emit, cancel, *, task_kind="repair", baseline=None):
         self.repo, self.runner, self.limits = repo, runner, limits
         self.emit, self.cancel = emit, cancel
+        self.baseline = baseline
         self.state = WorkflowState(task_kind=task_kind)
         self.investigation = Investigation(self, baseline)
         self.test_runs = 0
@@ -40,11 +50,23 @@ class ToolEnvironment:
         return self.state.plan
 
     def digest(self):
-        fingerprint = hashlib.sha256()
-        for name in self.repo.files():
-            if self.repo.editable(name):
-                fingerprint.update(name.encode() + b"\0" + self.repo.path(name).read_bytes() + b"\0")
-        return fingerprint.hexdigest()
+        return source_digest(self.repo)
+
+    def export_extra_state(self):
+        """Environment bits that live outside WorkflowState and must survive a restart."""
+        return {"test_runs": self.test_runs, "initial_digest": self.initial_digest,
+                "undo": [[name, text] for name, text in self.undo]}
+
+    def restore_extra_state(self, data):
+        self.test_runs = data["test_runs"]
+        self.initial_digest = data["initial_digest"]
+        self.undo = [(name, text) for name, text in data["undo"]]
+        # Repeated-action counting restarts: replayed probes after a restart are not evidence of a loop.
+        self.repeats.clear()
+        if self.baseline is not None:
+            untouched = Repository(self.baseline, self.repo.profile)
+            self.original = {name: untouched.path(name).read_text(encoding="utf-8")
+                             for name in self.repo.files() if self.repo.editable(name)}
 
     def source_changed(self):
         self.state.revision += 1

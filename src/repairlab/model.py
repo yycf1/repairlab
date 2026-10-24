@@ -46,6 +46,12 @@ class ModelBase:
     def serialize(self):
         return {"model": {"kind": type(self).__name__, "tokens": dict(self.tokens), "calls": self.model_calls}}
 
+    def restore(self, data):
+        """Rebuild usage counters from serialize() output; called only by task resume."""
+        info = data.get("model", {})
+        self.tokens = dict(info.get("tokens") or {"prompt": 0, "completion": 0})
+        self.model_calls = info.get("calls", 0)
+
     @staticmethod
     def message(decision):
         return {"role": "assistant", "content": json.dumps(decision.model_dump(exclude_defaults=True), ensure_ascii=False),
@@ -213,6 +219,18 @@ class DemoModel(ModelBase):
         self.strategy = strategy
         self.revised = False
         self.reviewed = False
+
+    def serialize(self):
+        data = super().serialize()
+        data["model"].update({"stage": self.stage, "revised": self.revised, "reviewed": self.reviewed})
+        return data
+
+    def restore(self, data):
+        super().restore(data)
+        info = data.get("model", {})
+        self.stage = info.get("stage", 0)
+        self.revised = info.get("revised", False)
+        self.reviewed = info.get("reviewed", False)
 
     def query(self, messages):
         self.model_calls += 1

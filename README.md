@@ -9,7 +9,7 @@
 - **先复现再修改**：自主检查先引用行为约定，原始快照确认复现失败后才能进入修复。
 - **测试绑定当前补丁**：修改或撤销使旧测试证据失效，提交前核对源码摘要与版本。
 - **逐用例验收**：记录 pytest 节点和各阶段结果，关键用例缺失、过滤或跳过都会拒收；不从终端的成功字样推断验收通过。
-- **可回放交付**：工作台查看计划、失败反馈、Git diff、用例结果及执行记录，支持取消、SSE 重连与产物下载。
+- **可回放交付**：工作台查看计划、失败反馈、Git diff、用例结果及执行记录，支持取消、中断续跑、SSE 重连与产物下载。
 
 ![工作台示例](docs/images/workbench-desktop.png)
 
@@ -125,14 +125,15 @@ src/repairlab/
   test_evidence.py   结构化报告校验、关键用例通过规则
   verification.py    干净副本应用补丁、验收和回归
   storage.py         SQLite 任务及事件记录
-  service.py         后台任务、取消、产物导出
+  checkpoint.py      执行现场检查点与续跑
+  service.py         后台任务、取消、续跑、产物导出
   api.py + web/      FastAPI / SSE 工作台
 examples/            三个自建缺陷仓库及外置验收集
 third_party/         开源许可、版本和来源校验
 tests/               行为、约束及端到端测试
 ```
 
-产物在 `.data/tasks/<任务ID>/`，包括原始快照、开发副本、验证副本，以及 `artifacts/patch.diff` 和 `report.json`。SQLite 保存事件，SSE 支持事件游标重连。重启后未完成任务标为中断，历史可回看；尚无执行现场续跑。数据目录通过进程锁避免服务和 CLI 同时占用；并行运行须指定不同 `REPAIRLAB_DATA_DIR`。
+产物在 `.data/tasks/<任务ID>/`，包括原始快照、开发副本、验证副本，以及 `artifacts/patch.diff`、`report.json`、`checkpoint.json` 和 `trajectory.json`。SQLite 保存事件，SSE 支持事件游标重连。重启后未完成任务标为中断，历史可回看；带检查点的中断任务可在工作台从执行现场续跑（校验工作区摘要与检查点一致，改动过则拒绝）。数据目录通过进程锁避免服务和 CLI 同时占用；并行运行须指定不同 `REPAIRLAB_DATA_DIR`。
 
 预算在调用边界检查：Token 使用供应商 usage，可能超出阈值一个请求，也无法计入未返回 usage 的调用；Agent 时限在步骤间检查，最终验收另受每条测试时限约束。上下文按字符裁剪，保留系统规则、问题、当前计划和最近八条消息，不是精确 token 计算。
 

@@ -8,15 +8,17 @@ import time
 import uuid
 
 from repairlab.agent import RepairAgent
+from repairlab.checkpoint import load_checkpoint
 from repairlab.lease import DataLease
 from repairlab.model import CompatibleModel, DemoModel
-from repairlab.models import RepoProfile, RepositoryCheck, StartRequest
+from repairlab.models import Limits, RepoProfile, RepositoryCheck, StartRequest
 from repairlab.preflight import inspect_repository, local_directory
 from repairlab.repository import Repository, copy_repository, diff_repositories
 from repairlab.runners import make_runner
 from repairlab.storage import Store
-from repairlab.tools import ToolEnvironment
+from repairlab.tools import ToolEnvironment, source_digest
 from repairlab.verification import Verifier
+from repairlab.workflow import WorkflowState
 
 TERMINAL = {"passed", "failed", "error", "cancelled", "interrupted", "budget_exhausted", "blocked", "reviewed"}
 
@@ -113,6 +115,7 @@ class Service:
             "backend": request.backend, "strategy": request.strategy, "task_kind": request.task_kind, "limits": request.limits.model_dump(),
             "model": self.settings.model if request.mode == "model" else "scripted-demo",
             "fixture": request.fixture, "tokens": {"prompt": 0, "completion": 0},
+            "allow_local": request.allow_local, "resumeable": False,
             "repository_profile": profile.model_dump(exclude={"demo"}), "preflight": preflight})
         cancel = threading.Event()
         self.cancellations[task_id] = cancel
@@ -124,8 +127,42 @@ class Service:
         return self.store.get(task_id)
 
     def run(self, task_id, request, profile, demo_config, issue, runner, cancel, model_override):
+        self._execute(task_id, request, profile, demo_config, issue, runner, cancel, model_override)
+
+    def resume(self, task_id, *, model_override=None):
+        """Continue an interrupted task from its checkpoint after validating the execution scene."""
+        task = self.store.get(task_id)
+        if task is None or task["status"] != "interrupted" or not task.get("resumeable"):
+            raise ValueError("只有带检查点的中断任务可以续跑。")
         task_dir = self.settings.data_dir / "tasks" / task_id
-        task_dir.mkdir(parents=True)
+        checkpoint = load_checkpoint(task_dir / "artifacts" / "checkpoint.json")
+        trajectory = task_dir / "artifacts" / "trajectory.json"
+        if checkpoint is None or not trajectory.exists():
+            raise ValueError("检查点或轨迹缺失，无法续跑；请创建新任务。")
+        if checkpoint.get("issue") != task.get("issue") or checkpoint.get("strategy") != task.get("strategy"):
+            raise ValueError("检查点与任务记录不一致；请创建新任务。")
+        profile = RepoProfile.model_validate(task["repository_profile"])
+        if source_digest(Repository(task_dir / "workspace", profile)) != checkpoint.get("source_digest"):
+            raise ValueError("工作区内容与检查点不一致；无法安全续跑，请创建新任务。")
+        request = StartRequest(fixture=task.get("fixture") or "boundary-discount", issue=task["issue"],
+                               mode=task["mode"], backend=task["backend"], strategy=task["strategy"],
+                               task_kind=task["task_kind"], allow_local=task.get("allow_local", False),
+                               limits=Limits(**task["limits"]))
+        demo_config = None
+        if profile.demo:
+            _, demo_config = self.profile(request.fixture)
+        cancel = threading.Event()
+        self.cancellations[task_id] = cancel
+        self.store.update(task_id, status="queued", resumeable=False, error="")
+        self.pool.submit(self._execute, task_id, request, profile, demo_config, task["issue"],
+                         make_runner(request.backend, request.allow_local), cancel, model_override, checkpoint)
+        return self.store.get(task_id)
+
+    def _execute(self, task_id, request, profile, demo_config, issue, runner, cancel, model_override,
+                 checkpoint=None):
+        task_dir = self.settings.data_dir / "tasks" / task_id
+        if checkpoint is None:
+            task_dir.mkdir(parents=True)
         started = time.monotonic()
         model = None
         environment = None
@@ -134,21 +171,35 @@ class Service:
             if kind == "workflow_state":
                 self.store.update(task_id, workflow=data, plan=data["plan"])
         try:
-            self.store.update(task_id, status="running")
-            emit("started", {"mode": request.mode, "backend": runner.name, "strategy": request.strategy})
+            self.store.update(task_id, status="running", resumeable=False)
+            emit("started", {"mode": request.mode, "backend": runner.name, "strategy": request.strategy,
+                             "resumed": checkpoint is not None})
             baseline, workspace = task_dir / "baseline", task_dir / "workspace"
-            copy_repository(Path(profile.source), baseline)
-            copy_repository(baseline, workspace)
+            if checkpoint is None:
+                copy_repository(Path(profile.source), baseline)
+                copy_repository(baseline, workspace)
             environment = ToolEnvironment(Repository(workspace, profile), runner, request.limits, emit, cancel,
                                           task_kind=request.task_kind, baseline=baseline)
+            if checkpoint is not None:
+                environment.restore_extra_state(checkpoint["environment"])
+                environment.state = WorkflowState.model_validate(checkpoint["workflow"])
 
             def on_delta(step, text, seq):
                 emit("model_output", {"step": step, "delta": text, "seq": seq})
 
             model = model_override or (DemoModel(demo_config, request.strategy) if request.mode == "demo"
                                       else CompatibleModel(self.settings, request.limits, on_delta=on_delta))
-            controller = RepairAgent(model, environment, request.limits, emit, cancel, request.strategy)
-            result = controller.run(issue)
+            if checkpoint is not None and model_override is None:
+                # A task-native model continues its usage counters; an injected override starts fresh.
+                model.restore(checkpoint["model"])
+            controller = RepairAgent(model, environment, request.limits, emit, cancel, request.strategy,
+                                     checkpoint_path=task_dir / "artifacts" / "checkpoint.json",
+                                     trajectory_path=task_dir / "artifacts" / "trajectory.json")
+            if checkpoint is None:
+                result = controller.run(issue)
+            else:
+                trajectory = json.loads((task_dir / "artifacts" / "trajectory.json").read_text(encoding="utf-8"))
+                result = controller.resume_run(issue, checkpoint["agent"], trajectory["messages"])
             self.store.update(task_id, model_calls=model.model_calls, tokens=dict(model.tokens),
                               plan=environment.plan, test_runs=environment.test_runs)
             if cancel.is_set() or result.get("exit_status") == "cancelled":

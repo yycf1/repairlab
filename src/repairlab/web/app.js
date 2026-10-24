@@ -180,6 +180,7 @@ function renderTask(task) {
   $('metric-tokens').textContent = task.mode === 'demo' ? '不适用' : (Number(task.tokens?.prompt || 0) + Number(task.tokens?.completion || 0)).toLocaleString();
   $('metric-time').textContent = task.seconds != null ? task.seconds + 's' : '进行中';
   $('cancel').classList.toggle('hidden', terminal.has(task.status));
+  $('resume').classList.toggle('hidden', !(task.status === 'interrupted' && task.resumeable));
   renderWorkflow(task.workflow);
   renderCandidates(task.workflow, task.id);
   if (task.patch) {
@@ -250,7 +251,7 @@ function appendEvent(event) {
     return;
   }
   if (event.kind === 'action' || event.kind === 'format_error') document.getElementById('stream-' + d.step)?.remove();
-  const title = event.kind === 'action' ? tools[d.action.tool] : event.kind === 'observation' ? (d.ok ? '获得执行反馈' : '发现问题，等待调整') : ({started:'任务开始', format_error:'动作格式需修正', verification_started:'开始独立验收', verification:'验收完成', finished:'任务结束', error:'执行异常', cancel_requested:'请求停止', interrupted:'服务重启'}[event.kind] || event.kind);
+  const title = event.kind === 'action' ? tools[d.action.tool] : event.kind === 'observation' ? (d.ok ? '获得执行反馈' : '发现问题，等待调整') : event.kind === 'started' ? (d.resumed ? '任务续跑' : '任务开始') : ({format_error:'动作格式需修正', verification_started:'开始独立验收', verification:'验收完成', finished:'任务结束', error:'执行异常', cancel_requested:'请求停止', interrupted:'服务重启'}[event.kind] || event.kind);
   const detail = event.kind === 'action' ? d.note : event.kind === 'observation' ? (d.error || d.category) : d.detail || d.note || statusNames[d.status] || '';
   const el = document.createElement('div'); el.className = 'event' + (d.ok === false || ['error','format_error'].includes(event.kind) ? ' error' : '');
   el.innerHTML = `<div class="event-top"><span class="event-title">${escape(title)}</span>${d.step ? `<span>STEP ${d.step}</span>` : ''}</div><p>${escape(detail)}</p><details><summary>查看记录</summary><pre>${escape(JSON.stringify(d, null, 2))}</pre></details>`;
@@ -310,6 +311,15 @@ $('check-repository').onclick = () => checkSelectedRepository(false);
 $('collect-repository').onclick = () => checkSelectedRepository(true);
 $('refresh').onclick = () => refreshTasks().catch(e => $('form-error').textContent = e.message);
 $('cancel').onclick = async () => { if (state.selected) await api(`/api/tasks/${state.selected}/cancel`, { method:'POST' }); };
+$('resume').onclick = async () => {
+  if (!state.selected) return;
+  $('resume').disabled = true;
+  try {
+    const task = await api(`/api/tasks/${state.selected}/resume`, { method: 'POST' });
+    await openTask(task.id); await refreshTasks();
+  } catch (e) { $('form-error').textContent = e.message; }
+  finally { $('resume').disabled = false; }
+};
 $('start').onclick = async () => {
   $('form-error').textContent = '';
   if ($('backend').value === 'local' && !$('allow-local').checked) { $('form-error').textContent = '请先确认只在本机运行可信代码。'; return; }

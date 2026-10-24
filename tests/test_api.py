@@ -31,3 +31,15 @@ def test_api_history_sse_and_artifacts(settings):
 def test_nonlocal_host_is_rejected(settings):
     with TestClient(create_app(settings)) as client:
         assert client.get("/", headers={"Host": "external.invalid"}).status_code == 400
+
+
+def test_resume_endpoint_validates_state(settings):
+    with TestClient(create_app(settings)) as client:
+        assert client.post("/api/tasks/0123456789abcdef/resume").status_code == 404
+        task = client.app.state.service.start(StartRequest(backend="local", allow_local=True), background=False,
+            model_override=ScriptedModel([{"action": {"tool": "finish", "reason": "unresolved", "summary": "No patch"}}]))
+        assert task["status"] == "blocked"
+        # Terminal tasks carry no resume point; the endpoint explains instead of resuming.
+        response = client.post(f"/api/tasks/{task['id']}/resume")
+        assert response.status_code == 400
+        assert "检查点" in response.json()["detail"]
