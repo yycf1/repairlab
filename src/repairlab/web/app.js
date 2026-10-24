@@ -57,6 +57,7 @@ function setWorkspace(id, { keepComposer = false } = {}) {
     : $('hero-note').textContent;
   const custom = entry?.kind === 'local';
   $('repository-tools').classList.toggle('hidden', !custom);
+  document.querySelectorAll('.custom-only').forEach(el => el.classList.toggle('hidden', !custom));
   $('repository-source').textContent = entry?.source || '';
   renderPreflight('repository-preflight', entry?.preflight);
   $('allow-local').checked = false;
@@ -467,11 +468,16 @@ document.querySelectorAll('.tab').forEach(button => button.onclick = () => {
 });
 
 /* ---------- 底部输入框：新建任务 / 追加指令 ---------- */
-function setBackend() { $('local-consent').classList.toggle('hidden', $('backend').value !== 'local'); }
+function setBackend() {
+  const local = $('backend').value === 'local';
+  $('local-consent').classList.toggle('hidden', !local);
+  document.querySelectorAll('#backend-seg button').forEach(b => b.classList.toggle('active', b.dataset.backend === $('backend').value));
+}
 const COMPOSER_PLACEHOLDER = '描述要修复的问题：预期行为、实际结果、复现条件；留空则自主检查并修复。';
 function updateComposerMode(task) {
   // task === null → composing a new task; otherwise follow-up mode bound to the task's state.
-  $('composer-settings').classList.toggle('hidden', task !== null);
+  document.body.classList.toggle('launch', task === null);
+  $('composer-launch').classList.toggle('hidden', task !== null);
   if (!task) {
     $('composer-send').disabled = false;
     $('composer-send').title = '发送（Enter 发送，Shift+Enter 换行）';
@@ -558,6 +564,23 @@ $('resume').onclick = async () => {
   } catch (e) { $('form-error').textContent = e.message; }
   finally { $('resume').disabled = false; }
 };
+$('backend-seg').querySelectorAll('button').forEach(b => b.onclick = () => { $('backend').value = b.dataset.backend; setBackend(); });
+function closePlusMenu() { $('composer-plus-menu').classList.add('hidden'); }
+$('composer-plus').onclick = (e) => {
+  e.stopPropagation();
+  const menu = $('composer-plus-menu');
+  if (menu.classList.contains('hidden')) {
+    const rect = $('composer-plus').getBoundingClientRect();
+    menu.style.left = Math.max(12, rect.left - 6) + 'px';
+    menu.style.bottom = window.innerHeight - rect.top + 10 + 'px';
+  }
+  menu.classList.toggle('hidden');
+};
+document.addEventListener('click', (e) => { if (!e.target.closest('#composer-plus-menu')) closePlusMenu(); });
+$('open-plus-settings').onclick = () => { closePlusMenu(); openModelSettings().catch(err => $('form-error').textContent = err.message); };
+$('preset-inspect').onclick = () => { $('composer-text').value = ''; sendComposer().catch(e => $('form-error').textContent = e.message); };
+$('preset-check').onclick = () => checkSelectedRepository(false).catch(e => $('form-error').textContent = e.message);
+$('preset-collect').onclick = () => checkSelectedRepository(true).catch(e => $('form-error').textContent = e.message);
 $('backend').onchange = setBackend;
 
 /* ---------- 模型设置 ---------- */
