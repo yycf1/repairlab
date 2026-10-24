@@ -65,26 +65,19 @@
     </div>
     <div class="composer-pill">
       <div class="composer-tools">
-        <button type="button" id="composer-plus" class="round-tool" title="执行环境、检查工具与预检结果" aria-haspopup="true">＋</button>
+        <button type="button" id="composer-plus" class="round-tool" title="检查工具与预检结果" aria-haspopup="true">＋</button>
         <div id="composer-plus-menu" class="plus-menu hidden">
-          <div class="plus-label">执行环境</div>
-          <div class="seg-row" id="backend-seg">
-            <button type="button" data-backend="docker">Docker 隔离环境</button>
-            <button type="button" data-backend="local">本地执行 · 仅可信仓库</button>
-          </div>
-          <label id="local-consent" class="consent hidden"><input type="checkbox" id="allow-local"><span>此仓库可信，我允许在本机运行测试。</span></label>
           <div id="repository-tools" class="plus-repo hidden">
             <span class="ws-repo-name" id="repository-source"></span>
             <div class="plus-repo-actions"><button id="check-repository" class="text-button">检查环境</button><button id="collect-repository" class="text-button">收集测试</button></div>
           </div>
           <div id="repository-preflight" class="preflight" aria-live="polite"></div>
-          <button type="button" id="open-plus-settings" class="plus-action">模型与运行预算设置…</button>
+          <button type="button" id="open-plus-settings" class="plus-action">打开设置…</button>
         </div>
       </div>
-      <textarea id="composer-text" rows="1" placeholder="描述要修复的问题：预期行为、实际结果、复现条件；留空则自主检查并修复。"></textarea>
+      <textarea id="composer-text" rows="1" placeholder="描述要修复的问题：预期行为、实际结果、复现条件。"></textarea>
       <button id="composer-send" class="send-btn" title="发送（Enter 发送，Shift+Enter 换行）">↑</button>
     </div>
-    <button type="button" id="run-config-chip" class="run-config" title="执行环境、信任确认与检查工具">⚙ <span id="run-config-text">运行环境</span> ▾</button>
     <p id="composer-hint" class="composer-hint"></p>
     <p id="form-error" class="error-message" role="alert"></p>
   </footer>
@@ -120,10 +113,11 @@
   </form>
 </dialog>
 <dialog id="model-settings-dialog" aria-labelledby="model-settings-title">
-  <div class="dialog-heading"><h2 id="model-settings-title">模型配置</h2><button id="close-model-settings" class="text-button" aria-label="关闭模型配置">关闭 ×</button></div>
-  <p class="dialog-intro">选择厂商预设并填写 API Key 即可。密钥只保存在本机 .env（已被 Git 忽略），不会上传，也不会出现在任务报告里。</p>
+  <div class="dialog-heading"><h2 id="model-settings-title">设置</h2><button id="close-model-settings" class="text-button" aria-label="关闭设置">关闭 ×</button></div>
+  <p class="dialog-intro">模型、执行环境与运行预算统一在这里配置。密钥只保存在本机 .env（已被 Git 忽略），不会上传，也不会出现在任务报告里。</p>
   <form id="model-settings-form">
     <fieldset id="model-settings-fields">
+      <div class="settings-section-label">模型</div>
       <label for="model-provider">厂商预设</label><select id="model-provider"></select>
       <p id="provider-note" class="field-note" aria-live="polite"></p>
       <label for="model-base-url">接口地址</label><input id="model-base-url" placeholder="https://api.example.com/v1" autocomplete="off" spellcheck="false">
@@ -131,12 +125,20 @@
       <label for="model-api-key">API Key</label>
       <div class="manual-directory"><input id="model-api-key" type="password" placeholder="sk-…" autocomplete="off" spellcheck="false"><button id="toggle-key" type="button" class="secondary">显示</button></div>
       <p class="field-note">已保存过密钥时可留空，保存将沿用原值。「测试连接」发送一条最小请求，不会保存任何内容。</p>
+      <div id="model-test-result" class="preflight" aria-live="polite"></div>
+      <div class="settings-section-label">运行环境</div>
+      <div class="seg-row" id="backend-seg">
+        <button type="button" data-backend="docker">Docker 隔离环境</button>
+        <button type="button" data-backend="local">本地执行 · 仅可信仓库</button>
+      </div>
+      <label id="local-consent" class="consent hidden"><input type="checkbox" id="allow-local"><span>此仓库可信，我允许在本机运行测试。</span></label>
+      <p class="field-note">本地执行没有容器隔离，仅对可信仓库使用；未安装 Docker 时会自动使用本地执行。</p>
+      <div class="settings-section-label">运行预算</div>
       <div class="dialog-budget">
         <div><label for="steps">最大决策步数</label><input id="steps" type="number" min="1" max="60" value="20"></div>
         <div><label for="timeout">单次测试超时 / 秒</label><input id="timeout" type="number" min="1" max="120" value="30"></div>
       </div>
       <p class="field-note">预算约束 Agent 单轮的工作量：步数用尽或测试超时即停止，任务结束后可继续下达指令。</p>
-      <div id="model-test-result" class="preflight" aria-live="polite"></div>
       <p id="model-settings-error" class="error-message" role="alert"></p>
     </fieldset>
     <div class="dialog-actions"><button id="test-model" type="button" class="secondary">测试连接</button><button type="submit" class="primary">保存配置 ↗</button></div>

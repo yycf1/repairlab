@@ -52,7 +52,7 @@ function setWorkspace(id, { keepComposer = false } = {}) {
   const entry = workspaceEntry();
   $('workspace-name').textContent = entry?.name || id;
   $('hero-note').textContent = entry
-    ? (entry.kind === 'local' ? `${entry.name} · 选择上方运行模式后发送；执行环境与检查工具在输入框左侧 ＋ 中。`
+    ? (entry.kind === 'local' ? `${entry.name} · 选择上方运行模式后发送；检查工具在输入框左侧 ＋ 中，模型与环境在设置中。`
       : `当前工作区：${entry.name}${entry.description ? ' · ' + String(entry.description).slice(0, 60) : ''}`)
     : $('hero-note').textContent;
   const custom = entry?.kind === 'local';
@@ -469,26 +469,15 @@ document.querySelectorAll('.tab').forEach(button => button.onclick = () => {
 /* ---------- 底部输入框：新建任务 / 追加指令 ---------- */
 function setBackend() {
   const local = $('backend').value === 'local';
-  const pending = local && !$('allow-local').checked;
   $('local-consent').classList.toggle('hidden', !local);
   document.querySelectorAll('#backend-seg button').forEach(b => b.classList.toggle('active', b.dataset.backend === $('backend').value));
-  $('run-config-text').textContent = local
-    ? (pending ? '运行环境：本地执行 · 待确认信任' : '运行环境：本地执行 · 已确认信任')
-    : '运行环境：Docker 隔离环境';
-  $('run-config-chip').classList.toggle('pending', pending);
 }
-const REPAIR_TEMPLATE = '问题描述：\n预期行为：\n实际结果：\n复现条件：';
-function setRunMode(mode, prefill = true) {
+function setRunMode(mode) {
   state.runMode = mode;
   document.querySelectorAll('#composer-launch .preset-chip').forEach(c => c.classList.toggle('active', c.dataset.mode === mode));
-  const box = $('composer-text');
-  if (mode === 'repair') {
-    box.placeholder = '描述要修复的问题：预期行为、实际结果、复现条件…';
-    if (prefill && !box.value.trim()) { box.value = REPAIR_TEMPLATE; autoGrow(); }
-  } else {
-    box.placeholder = '直接发送即开始全面自主检查；也可填写关注的模块、边界输入和行为约定…';
-    if (box.value === REPAIR_TEMPLATE) { box.value = ''; autoGrow(); }
-  }
+  $('composer-text').placeholder = mode === 'repair'
+    ? '描述要修复的问题：预期行为、实际结果、复现条件…'
+    : '直接发送即开始全面自主检查；也可填写关注的模块、边界输入和行为约定…';
 }
 function updateComposerMode(task) {
   // task === null → composing a new task; otherwise follow-up mode bound to the task's state.
@@ -499,7 +488,7 @@ function updateComposerMode(task) {
     $('composer-send').disabled = false;
     $('composer-send').title = '发送（Enter 发送，Shift+Enter 换行）';
     $('composer-hint').textContent = 'Enter 发送 · Shift+Enter 换行';
-    setRunMode(state.runMode || 'repair', false);
+    setRunMode(state.runMode || 'repair');
     return;
   }
   const canFollowUp = terminal.has(task.status) && task.mode === 'model';
@@ -533,16 +522,15 @@ async function sendComposer() {
     finally { updateComposerMode(await api(`/api/tasks/${state.selected}`).catch(() => null)); }
     return;
   }
-  // 运行模式由上方预设按钮选择：修复模式需要问题描述，自主检查可直接发送（模板原文不算描述）。
+  // 运行模式由上方预设按钮选择：修复模式需要问题描述，自主检查可直接发送。
   const inspect = state.runMode === 'inspect';
-  const issue = text === REPAIR_TEMPLATE ? '' : text;
-  if (!inspect && !issue) { $('form-error').textContent = '请描述要修复的问题；也可切换为自主检查并修复。'; $('composer-text').focus(); return; }
+  if (!inspect && !text) { $('form-error').textContent = '请描述要修复的问题；也可切换为自主检查并修复。'; $('composer-text').focus(); return; }
   if ($('backend').value === 'local' && !$('allow-local').checked) { promptLocalConsent(); return; }
   if (!state.config.model_configured) { $('form-error').textContent = '尚未配置真实模型，请点击右上角模型名打开设置。'; return; }
   $('composer-send').disabled = true;
   try {
     const task = await api('/api/tasks', { method: 'POST', body: JSON.stringify({
-      fixture: state.workspace, issue: issue, task_kind: inspect ? 'inspect' : 'repair', mode: 'model',
+      fixture: state.workspace, issue: text, task_kind: inspect ? 'inspect' : 'repair', mode: 'model',
       backend: $('backend').value, strategy: 'feedback', allow_local: $('allow-local').checked,
       limits: { max_steps: inspect ? Math.max(Number($('steps').value) || 20, 32) : Number($('steps').value),
         command_seconds: Number($('timeout').value),
@@ -585,33 +573,32 @@ $('resume').onclick = async () => {
 };
 $('backend-seg').querySelectorAll('button').forEach(b => b.onclick = () => { $('backend').value = b.dataset.backend; setBackend(); });
 function closePlusMenu() { $('composer-plus-menu').classList.add('hidden'); }
-function openPlusMenu(attention) {
+function openPlusMenu() {
   const menu = $('composer-plus-menu');
   if (menu.classList.contains('hidden')) {
     const rect = $('composer-plus').getBoundingClientRect();
+    // 高度按加号上方的可用空间钳制，菜单再长也只在自身内部滚动，不会顶出屏幕
+    const available = rect.top - 70;
     menu.style.left = Math.max(12, rect.left - 6) + 'px';
     menu.style.bottom = window.innerHeight - rect.top + 10 + 'px';
+    menu.style.maxHeight = Math.max(200, available - 10) + 'px';
     menu.classList.remove('hidden');
   }
-  if (attention) {
-    const c = $('local-consent');
-    c.classList.remove('attention'); void c.offsetWidth; c.classList.add('attention');
-  }
+}
+function pulseConsent() {
+  const c = $('local-consent');
+  c.classList.remove('attention'); void c.offsetWidth; c.classList.add('attention');
+  c.scrollIntoView({ block: 'center' });
 }
 function promptLocalConsent() {
-  $('form-error').textContent = '请在弹出的运行设置中勾选「此仓库可信」后重试。';
-  openPlusMenu(true);
+  $('form-error').textContent = '请在设置中确认「此仓库可信」后重试。';
+  openModelSettings(true);
 }
 $('composer-plus').onclick = (e) => {
   e.stopPropagation();
-  $('composer-plus-menu').classList.contains('hidden') ? openPlusMenu(false) : closePlusMenu();
+  $('composer-plus-menu').classList.contains('hidden') ? openPlusMenu() : closePlusMenu();
 };
-$('run-config-chip').onclick = () => openPlusMenu(false);
-// 发送按钮与运行环境按钮可能触发"打开菜单"的守卫流程，不算点外部；加号按钮自身已 stopPropagation。
-document.addEventListener('click', (e) => {
-  if (e.target.closest('#composer-plus-menu, #composer-send, #run-config-chip')) return;
-  closePlusMenu();
-});
+document.addEventListener('click', (e) => { if (!e.target.closest('#composer-plus-menu')) closePlusMenu(); });
 $('open-plus-settings').onclick = () => { closePlusMenu(); openModelSettings().catch(err => $('form-error').textContent = err.message); };
 $('preset-repair').onclick = () => setRunMode('repair');
 $('preset-inspect').onclick = () => setRunMode('inspect');
@@ -640,7 +627,7 @@ function renderTestResult(result) {
   if (result.pending) { el.innerHTML = '<div class="preflight-summary">正在发送测试请求…</div>'; return; }
   el.innerHTML = `<div class="preflight-summary ${result.ok ? '' : 'blocked'}">${result.ok ? '✓' : '×'} ${escape(result.message)}${result.latency_ms != null ? `<div>${result.latency_ms} ms</div>` : ''}</div>`;
 }
-async function openModelSettings() {
+async function openModelSettings(attentionConsent = false) {
   $('model-settings-error').textContent = ''; renderTestResult(null);
   const [config, providers] = await Promise.all([api('/api/settings/model'), api('/api/settings/providers')]);
   state.providers = providers;
@@ -650,7 +637,9 @@ async function openModelSettings() {
   $('model-api-key').placeholder = config.api_key_masked ? `已配置（${config.api_key_masked}），留空沿用` : 'sk-…';
   $('model-provider').value = providers.some(p => p.id === config.provider) ? config.provider : 'custom';
   syncProviderFields(false);
+  setBackend();
   $('model-settings-dialog').showModal();
+  if (attentionConsent) pulseConsent();
 }
 $('model-status').onclick = () => openModelSettings().catch(e => $('form-error').textContent = e.message);
 $('close-model-settings').onclick = () => $('model-settings-dialog').close();
