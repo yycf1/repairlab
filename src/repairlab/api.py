@@ -20,6 +20,14 @@ from repairlab.service import Service, TERMINAL
 from repairlab.settings import Settings
 
 
+class NoCacheStaticFiles(StaticFiles):
+    """工作台资源随代码更新；no-cache 强制每次刷新前重新校验，否则浏览器启发式缓存会让打开中的页面在普通刷新后仍用旧样式。"""
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["cache-control"] = "no-cache"
+        return response
+
+
 def create_app(settings=None):
     settings = settings or Settings()
     @asynccontextmanager
@@ -40,7 +48,7 @@ def create_app(settings=None):
             return JSONResponse({"detail": "请在本机工作台页面中操作。"}, status_code=403)
         return await call_next(request)
     static = Path(__file__).parent / "web"
-    app.mount("/static", StaticFiles(directory=static), name="static")
+    app.mount("/static", NoCacheStaticFiles(directory=static), name="static")
 
     def service():
         return app.state.service
@@ -55,7 +63,7 @@ def create_app(settings=None):
 
     @app.get("/")
     def index():
-        return FileResponse(static / "index.html")
+        return FileResponse(static / "index.html", headers={"cache-control": "no-cache"})
 
     @app.get("/api/config")
     def config():
