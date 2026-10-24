@@ -72,5 +72,11 @@ def test_workspace_browser_endpoints(settings):
         assert client.get(f"/api/tasks/{task['id']}/workspace/file",
                           params={"path": "tests/test_pricing.py"}).status_code == 200
         assert client.get("/api/tasks/0123456789abcdef/workspace/files").status_code == 404
+        # 任务记录创建于工作区快照功能之前：没有 repository_profile 时返回可读的 404，而不是 500。
+        client.app.state.service.store.update(task["id"], repository_profile=None)
+        legacy_files = client.get(f"/api/tasks/{task['id']}/workspace/files")
+        assert legacy_files.status_code == 404 and "未记录文件清单" in legacy_files.json()["detail"]
+        legacy_file = client.get(f"/api/tasks/{task['id']}/workspace/file", params={"path": "pricing.py"})
+        assert legacy_file.status_code == 404
         follow_up = client.post(f"/api/tasks/{task['id']}/follow-up", json={"text": ""})
         assert follow_up.status_code == 422  # empty instruction rejected by the request model

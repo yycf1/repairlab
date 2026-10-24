@@ -190,10 +190,13 @@ def create_app(settings=None):
             raise HTTPException(400, str(exc)) from None
 
     def workspace_repository(task):
+        profile_data = task.get("repository_profile")
+        if not profile_data:
+            raise HTTPException(404, "此任务创建于工作区快照功能之前，未记录文件清单；新建任务即可查看。")
         workspace = settings.data_dir / "tasks" / task["id"] / "workspace"
         if not workspace.exists():
             raise HTTPException(404, "工作区尚未创建")
-        return Repository(workspace, RepoProfile.model_validate(task["repository_profile"]))
+        return Repository(workspace, RepoProfile.model_validate(profile_data))
 
     @app.get("/api/tasks/{task_id}/workspace/files")
     def workspace_files(task_id: str):

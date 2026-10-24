@@ -12,8 +12,9 @@ const TEST_CATEGORIES = {ok:'通过', test_failure:'断言失败', code_error:'�
 const escape = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(path, options = {}) {
   const response = await fetch(path, { ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });
-  const body = await response.json();
-  if (!response.ok) throw new Error(typeof body.detail === 'string' ? body.detail : '请求参数无效，请检查输入。');
+  let body = null;
+  try { body = await response.json(); } catch { /* non-JSON error body (e.g. plain-text 500) */ }
+  if (!response.ok) throw new Error(body?.detail && typeof body.detail === 'string' ? body.detail : `请求失败（HTTP ${response.status}）`);
   return body;
 }
 const workspaceEntry = () => state.fixtures.find(f => f.id === state.workspace);
@@ -347,6 +348,7 @@ async function openTask(id) {
   if (state.selected !== id) return;
   renderTask(task);
   workspaceLoadedFor = null; $('workspace-files').innerHTML = ''; $('workspace-content').textContent = '选择左侧文件查看只读内容。';
+  $('workspace-file-head').classList.add('hidden');
   if (task.issue) {
     const divider = document.createElement('div'); divider.className = 'round-divider'; divider.innerHTML = '<span>第 1 轮 · 任务描述</span>';
     const bubble = document.createElement('div'); bubble.className = 'chat-user'; bubble.innerHTML = `<p>${escape(task.issue)}</p>`;
@@ -388,20 +390,34 @@ let workspaceLoadedFor = null;
 async function loadWorkspaceFiles(taskId) {
   if (workspaceLoadedFor === taskId) return;
   const box = $('workspace-files');
-  box.innerHTML = '<p class="quiet">加载中…</p>';
+  box.innerHTML = '<p class="quiet ws-note">加载中…</p>';
   try {
     const data = await api(`/api/tasks/${taskId}/workspace/files`);
     workspaceLoadedFor = taskId;
-    box.innerHTML = data.files.length ? data.files.map(f => `<button class="ws-file" data-path="${escape(f.path)}">${escape(f.path)}<small>${f.size} B</small></button>`).join('') : '<p class="quiet">工作区为空。</p>';
-    box.querySelectorAll('button').forEach(b => b.onclick = () => openWorkspaceFile(taskId, b.dataset.path));
-  } catch (e) { box.innerHTML = `<p class="quiet">${escape(e.message)}</p>`; }
+    const head = `<div class="ws-files-head">工作区文件 · ${data.files.length}</div>`;
+    if (!data.files.length) {
+      box.innerHTML = head + '<p class="quiet ws-note">工作区没有可展示的文本文件。</p>';
+      return;
+    }
+    box.innerHTML = head + data.files.map(f =>
+      `<button class="ws-file" data-path="${escape(f.path)}"><span class="path">${escape(f.path)}</span><small>${f.size} B</small></button>`).join('');
+    box.querySelectorAll('button').forEach(b => b.onclick = () => openWorkspaceFile(taskId, b));
+    openWorkspaceFile(taskId, box.querySelector('button'));
+  } catch (e) { box.innerHTML = `<p class="quiet ws-note">${escape(e.message)}</p>`; }
 }
-async function openWorkspaceFile(taskId, path) {
-  $('workspace-content').textContent = '加载中…';
+async function openWorkspaceFile(taskId, button) {
+  const path = button.dataset.path;
+  const box = button.parentElement;
+  box.querySelectorAll('.ws-file.selected').forEach(x => x.classList.remove('selected'));
+  button.classList.add('selected');
+  $('workspace-file-head').classList.remove('hidden');
+  $('workspace-file-head').textContent = path;
+  const view = $('workspace-content');
+  view.textContent = '加载中…';
   try {
     const data = await api(`/api/tasks/${taskId}/workspace/file?path=${encodeURIComponent(path)}`);
-    $('workspace-content').textContent = data.text + (data.total_lines > 400 ? `\n…（共 ${data.total_lines} 行，仅显示前 400 行）` : '');
-  } catch (e) { $('workspace-content').textContent = e.message; }
+    view.textContent = data.text + (data.total_lines > 400 ? `\n…（共 ${data.total_lines} 行，仅显示前 400 行）` : '');
+  } catch (e) { view.textContent = e.message; }
 }
 document.querySelectorAll('.tab').forEach(button => button.onclick = () => {
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('selected', b === button));

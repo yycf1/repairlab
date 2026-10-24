@@ -244,16 +244,27 @@ main {
 .milestone.failed .milestone-tag { background: #f8ede8; color: #a45c44; }
 
 /* ---------- 8. 工作区浏览 ---------- */
-.workspace-browser { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 14px; align-items: start; }
-.workspace-files { border: 1px solid var(--line); border-radius: 6px; max-height: 62vh; overflow: auto; background: #fcfdfb; }
-.ws-file {
-  display: block; width: 100%; text-align: left;
-  padding: 8px 10px; border-bottom: 1px solid #eef1ea;
-  font: 11px/1.5 var(--mono); color: #41573f; overflow-wrap: anywhere;
-}
+.workspace-browser { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 14px; align-items: start; }
+.workspace-pane { min-width: 0; }
+.workspace-files { border: 1px solid var(--line); border-radius: 8px; max-height: 62vh; overflow: auto; background: var(--card); }
+.ws-files-head { position: sticky; top: 0; padding: 9px 12px; font-size: 11px; font-weight: 600;
+  color: #4f6547; background: #f2f6ee; border-bottom: 1px solid var(--line); }
+.ws-file { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
+  text-align: left; padding: 8px 12px; border-bottom: 1px solid #eef1ea;
+  font: 11px/1.5 var(--mono); color: #41573f; }
+.ws-file:last-of-type { border-bottom: 0; }
+.ws-file .path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-file:hover { background: #f2f6ee; }
-.ws-file small { float: right; color: #9aa695; font-size: 10px; }
-#workspace-content { min-height: 320px; max-height: 62vh; }
+.ws-file.selected { background: #e9f2e6; color: var(--green); font-weight: 600; }
+.ws-file small { flex-shrink: 0; color: #9aa695; font-size: 10px; }
+.ws-note { padding: 12px; line-height: 1.7; }
+.workspace-file-head { font: 11px var(--mono); color: #4f6547; background: #f2f6ee;
+  border: 1px solid var(--line); border-bottom: 0; border-radius: 8px 8px 0 0;
+  padding: 8px 14px; overflow-wrap: anywhere; }
+#workspace-content { margin: 0; min-height: 240px; max-height: 62vh; overflow: auto;
+  background: var(--card); color: #33402f; border: 1px solid var(--line); border-radius: 8px;
+  padding: 14px 16px; font: 11.5px/1.9 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.workspace-file-head:not(.hidden) + #workspace-content { border-radius: 0 0 8px 8px; }
 
 /* ---------- 9. 补丁与验收 ---------- */
 .code-block {
