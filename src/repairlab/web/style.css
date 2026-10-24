@@ -295,7 +295,12 @@ main {
 .secondary.danger { border-color: #c98a5e; color: #a45c44; background: #fdf3ea; }
 
 /* ---------- 10. 底部输入框 ---------- */
-#composer { flex: 0 0 auto; border-top: 1px solid var(--line); background: #f6f8f3; padding: 10px 18px 9px; }
+/* 底栏是固定壳层的一段，内容（预检明细、预算表单）展开时必须自限高度，
+   否则会把 #main-scroll 挤没而 body 又禁止滚动，整页卡死。 */
+#composer {
+  flex: 0 0 auto; max-height: min(72vh, 640px); overflow-y: auto; overscroll-behavior: contain;
+  border-top: 1px solid var(--line); background: #f6f8f3; padding: 10px 18px 9px;
+}
 .composer-settings {
   display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center;
   max-width: 920px; margin: 0 auto 9px;
@@ -321,8 +326,9 @@ main {
 .ws-repo-name { font: 10px var(--mono); color: var(--muted); max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .text-button { color: var(--green); font-size: 11px; padding: 4px 0; text-align: left; }
 .text-button:hover { text-decoration: underline; }
-.text-button:disabled { opacity: .5; cursor: wait; }
+.text-button:disabled { opacity: .5; cursor: not-allowed; }
 #repository-preflight { max-width: 920px; margin: 0 auto 8px; }
+#repository-preflight details { max-height: 38vh; overflow-y: auto; overscroll-behavior: contain; }
 
 .composer-pill {
   display: flex; align-items: flex-end; gap: 10px;
@@ -341,7 +347,7 @@ main {
   background: var(--green); color: #fff; font-size: 16px; line-height: 1;
 }
 .send-btn:hover { background: #214c3d; }
-.send-btn:disabled { opacity: .4; cursor: wait; }
+.send-btn:disabled { opacity: .4; cursor: not-allowed; }
 .composer-hint { font-size: 10px; color: #98a193; text-align: center; margin: 6px 0 0; }
 .error-message { font-size: 11px; color: #b55342; margin: 4px 0 0; white-space: pre-wrap; }
 #form-error { max-width: 920px; margin: 4px auto 0; }
@@ -359,9 +365,9 @@ select:focus, textarea:focus, input:focus { border-color: #7c9b7b; box-shadow: 0
   padding: 11px 16px; font-weight: 500;
 }
 .primary:hover { background: #214c3d; }
-.primary:disabled { opacity: .5; cursor: wait; }
+.primary:disabled { opacity: .5; cursor: not-allowed; }
 .secondary { background: #eef3e9; border: 1px solid #dfe6d9; border-radius: 6px; padding: 9px 14px; color: var(--green); font-size: 12px; }
-.secondary:disabled { opacity: .5; cursor: wait; }
+.secondary:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ---------- 12. 预检结果（侧栏设置条与对话框共用） ---------- */
 .preflight { font-size: 11px; overflow-wrap: anywhere; }
@@ -399,7 +405,7 @@ fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 #repository-form textarea, #model-settings-fields textarea { min-height: 60px; }
 .dialog-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 18px; }
 .dialog-actions .primary { width: auto; }
-.dialog-actions .secondary:disabled { opacity: .5; cursor: wait; }
+.dialog-actions .secondary:disabled { opacity: .5; cursor: not-allowed; }
 .folder-picker {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   width: 100%; gap: 6px; padding: 22px 18px; margin: 14px 0 10px;
@@ -409,7 +415,7 @@ fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .folder-picker-icon { font-size: 32px; line-height: 1; }
 .folder-picker strong { font-size: 14px; font-weight: 500; }
 .folder-picker small { font-size: 11px; color: var(--muted); }
-.folder-picker:disabled { opacity: .5; cursor: wait; }
+.folder-picker:disabled { opacity: .5; cursor: not-allowed; }
 .source-note { font: 10px/1.7 var(--mono); color: var(--muted); overflow-wrap: anywhere; margin: 8px 0; }
 .discovery-summary { border: 1px solid #e0e8d9; border-radius: 7px; background: #f7faf4; padding: 13px 15px; font-size: 12px; overflow-wrap: anywhere; }
 .discovery-summary h3 { margin: 0 0 8px; font-size: 14px; font-weight: 500; color: var(--green); }
