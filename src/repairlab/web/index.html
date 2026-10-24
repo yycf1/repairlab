@@ -31,7 +31,7 @@
     <div class="topbar-actions">
       <button id="resume" class="cancel hidden">从检查点继续 ↻</button>
       <button id="cancel" class="cancel hidden">停止任务</button>
-      <div id="model-status" class="chip">检查模型配置…</div>
+      <div id="model-status" class="chip" title="模型与运行预算设置">检查模型配置…</div>
     </div>
   </header>
   <div id="main-scroll">
@@ -60,9 +60,8 @@
   <footer id="composer">
     <input type="hidden" id="backend" value="docker">
     <div id="composer-launch" class="hidden">
-      <button type="button" class="preset-chip" id="preset-inspect">全面自主检查并修复</button>
-      <button type="button" class="preset-chip custom-only hidden" id="preset-check">检查执行环境</button>
-      <button type="button" class="preset-chip custom-only hidden" id="preset-collect">收集测试</button>
+      <button type="button" class="preset-chip" id="preset-repair" data-mode="repair">修复指定问题</button>
+      <button type="button" class="preset-chip" id="preset-inspect" data-mode="inspect">自主检查并修复</button>
     </div>
     <div class="composer-pill">
       <div class="composer-tools">
@@ -85,6 +84,7 @@
       <textarea id="composer-text" rows="1" placeholder="描述要修复的问题：预期行为、实际结果、复现条件；留空则自主检查并修复。"></textarea>
       <button id="composer-send" class="send-btn" title="发送（Enter 发送，Shift+Enter 换行）">↑</button>
     </div>
+    <button type="button" id="run-config-chip" class="run-config" title="执行环境、信任确认与检查工具">⚙ <span id="run-config-text">运行环境</span> ▾</button>
     <p id="composer-hint" class="composer-hint"></p>
     <p id="form-error" class="error-message" role="alert"></p>
   </footer>

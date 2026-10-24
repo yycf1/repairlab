@@ -314,11 +314,22 @@ body.launch #composer::after { content: ''; flex: 1 1 auto; }
   display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
   max-width: 780px; margin: 0 auto 12px;
 }
-.preset-chip {
-  padding: 7px 15px; border: 1px solid #dfe4dc; border-radius: 18px; background: #fff;
-  color: #41503f; font-size: 12px; box-shadow: 0 4px 14px #24392912; white-space: nowrap;
-}
+.preset-chip { padding: 7px 15px; border: 1px solid #dfe4dc; border-radius: 18px; background: #fff;
+  color: #41503f; font-size: 12px; box-shadow: 0 4px 14px #24392912; white-space: nowrap; }
 .preset-chip:hover { border-color: #7c9b7b; color: var(--green); }
+.preset-chip.active { border-color: var(--green); background: var(--soft); color: var(--green); font-weight: 600; }
+
+/* 输入框下方的运行环境状态按钮：发起态常驻，点击打开加号菜单 */
+.run-config {
+  display: none; align-items: center; gap: 6px; width: fit-content; margin: 12px auto 0;
+  padding: 6px 14px; border: 1px solid #dfe4dc; border-radius: 16px; background: #fff;
+  color: #5d6a5f; font-size: 11.5px; box-shadow: 0 4px 14px #24392912;
+}
+body.launch .run-config { display: flex; }
+.run-config:hover { border-color: #7c9b7b; color: var(--green); }
+.run-config.pending { border-color: #dcb98a; background: #faf6ed; color: #98713e; }
+@keyframes consent-pulse { 0%, 100% { box-shadow: 0 0 0 0 #b98a3e00; } 50% { box-shadow: 0 0 0 5px #b98a3e59; } }
+.plus-menu .consent.attention { animation: consent-pulse 1s ease 2; }
 
 .composer-pill {
   display: flex; align-items: flex-end; gap: 8px;
