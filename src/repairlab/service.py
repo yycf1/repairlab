@@ -141,8 +141,12 @@ class Service:
             copy_repository(baseline, workspace)
             environment = ToolEnvironment(Repository(workspace, profile), runner, request.limits, emit, cancel,
                                           task_kind=request.task_kind, baseline=baseline)
+
+            def on_delta(step, text, seq):
+                emit("model_output", {"step": step, "delta": text, "seq": seq})
+
             model = model_override or (DemoModel(demo_config, request.strategy) if request.mode == "demo"
-                                      else CompatibleModel(self.settings, request.limits))
+                                      else CompatibleModel(self.settings, request.limits, on_delta=on_delta))
             controller = RepairAgent(model, environment, request.limits, emit, cancel, request.strategy)
             result = controller.run(issue)
             self.store.update(task_id, model_calls=model.model_calls, tokens=dict(model.tokens),

@@ -13,3 +13,7 @@
 .candidate summary span { display: block; margin-top: 6px; }
 .candidate p { margin: 8px 0; line-height: 1.6; }
 .candidate small { display: block; margin-top: 8px; color: #69766c; }
+
+.event.streaming:before { background: #c2d3b6; animation: stream-pulse 1s infinite; }
+.event.streaming pre { border-style: dashed; color: #4f614a; min-height: 38px; }
+@keyframes stream-pulse { 50% { opacity: .3; } }

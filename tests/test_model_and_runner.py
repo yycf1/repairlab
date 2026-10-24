@@ -101,6 +101,66 @@ def test_provider_error_body_is_not_exposed(settings, monkeypatch):
     model.close()
 
 
+def sse_body(*chunks):
+    return "".join(f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n" for chunk in chunks) + "data: [DONE]\n\n"
+
+
+STREAM_HEADERS = {"content-type": "text/event-stream"}
+
+
+def test_streaming_model_accumulates_content_and_usage(settings, monkeypatch):
+    settings = configured(settings, monkeypatch)
+    note = "x" * 250  # flush threshold is 240 chars, so this produces more than one delta event
+    body = sse_body({"choices": [{"delta": {"content": '{"note":"' + note + '","acti'}}]},
+                     {"choices": [{"delta": {"content": 'on":{"tool":"list_files"}}'}}]},
+                     {"usage": {"prompt_tokens": 11, "completion_tokens": 7}, "choices": []}).encode()
+    def respond(request):
+        assert json.loads(request.content)["stream"] is True
+        return httpx.Response(200, content=body, headers=STREAM_HEADERS)
+    deltas = []
+    with httpx.Client(transport=httpx.MockTransport(respond)) as client:
+        model = CompatibleModel(settings, Limits(), client=client,
+                                on_delta=lambda step, text, seq: deltas.append((step, text, seq)))
+        model.state = {"step": 3}
+        result = model.query([{"role": "system", "content": "rules"}, {"role": "user", "content": "issue"}])
+    model.close()
+    assert result["extra"]["actions"][0]["tool"] == "list_files"
+    assert model.tokens == {"prompt": 11, "completion": 7}
+    assert "".join(text for _, text, _ in deltas) == '{"note":"' + note + '","action":{"tool":"list_files"}}'
+    assert {step for step, _, _ in deltas} == {3}
+    assert [seq for _, _, seq in deltas] == list(range(1, len(deltas) + 1))
+
+
+def test_streaming_retry_resets_partial_output(settings, monkeypatch):
+    settings = configured(settings, monkeypatch)
+    note = "x" * 250
+    complete = '{"note":"' + note + '","action":{"tool":"list_files"}}'
+    calls = {"n": 0}
+    def respond(request):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            def broken():
+                yield ('data: ' + json.dumps({"choices": [{"delta": {"content": '{"note":"' + note + '"'}}]}) + "\n\n").encode()
+                raise httpx.ReadError("connection reset")
+            return httpx.Response(200, content=broken(), headers=STREAM_HEADERS)
+        body = sse_body({"choices": [{"delta": {"content": complete}}]},
+                        {"usage": {"prompt_tokens": 5, "completion_tokens": 3}, "choices": []}).encode()
+        return httpx.Response(200, content=body, headers=STREAM_HEADERS)
+    deltas = []
+    with httpx.Client(transport=httpx.MockTransport(respond)) as client:
+        model = CompatibleModel(settings, Limits(), client=client,
+                                on_delta=lambda step, text, seq: deltas.append((step, text, seq)))
+        model.state = {"step": 1}
+        result = model.query([{"role": "system", "content": "rules"}, {"role": "user", "content": "issue"}])
+    model.close()
+    assert calls["n"] == 2
+    assert result["extra"]["actions"][0]["tool"] == "list_files"
+    assert model.tokens == {"prompt": 5, "completion": 3}
+    assert (None, 0) in [(text, seq) for _, text, seq in deltas]
+    after_reset = "".join(text for _, text, _ in deltas[[i for i, d in enumerate(deltas) if d[1] is None][0] + 1:])
+    assert after_reset == complete
+
+
 def test_local_execution_requires_opt_in():
     with pytest.raises(ExecutionUnavailable):
         LocalRunner()

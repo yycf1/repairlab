@@ -11,6 +11,14 @@ from repairlab.models import Decision
 from repairlab._vendor.mini.exceptions import FormatError
 
 
+class _RetryStatus(Exception):
+    """Retryable HTTP status observed on a streaming response; the query loop owns retry policy."""
+
+    def __init__(self, status):
+        super().__init__(str(status))
+        self.status = status
+
+
 def parse_decision(content):
     text = content.strip()
     fenced = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", text, flags=re.DOTALL)
@@ -45,11 +53,13 @@ class ModelBase:
 
 
 class CompatibleModel(ModelBase):
-    def __init__(self, settings, limits, *, client=None):
+    def __init__(self, settings, limits, *, client=None, on_delta=None):
         super().__init__()
         if not settings.model_ready:
             raise ValueError("请在项目2的 .env 中配置模型、接口地址和密钥。")
         self.settings, self.limits = settings, limits
+        self.on_delta = on_delta
+        self._stream_emitted = False
         self.client = client or httpx.Client(timeout=httpx.Timeout(45, connect=10))
 
     def context(self, messages):
@@ -86,32 +96,50 @@ class CompatibleModel(ModelBase):
             initial.append({"role": m["role"], "content": content})
         return initial
 
+    def request_body(self, messages, *, stream):
+        payload = {"model": self.settings.model, "messages": self.context(messages),
+                   "temperature": 0, "max_tokens": 1600}
+        if stream:
+            payload["stream"] = True
+            payload["stream_options"] = {"include_usage": True}
+        return payload
+
     def query(self, messages):
         self.model_calls += 1
-        response = None
+        step = self.state.get("step")
+        content, usage = "", {}
         for attempt in range(2):
+            self._stream_emitted = False
             try:
-                response = self.client.post(self.settings.base_url + "/chat/completions",
-                    headers={"Authorization": "Bearer " + self.settings.api_key},
-                    json={"model": self.settings.model, "messages": self.context(messages),
-                          "temperature": 0, "max_tokens": 1600})
+                if self.on_delta is None:
+                    response = self.client.post(self.settings.base_url + "/chat/completions",
+                        headers={"Authorization": "Bearer " + self.settings.api_key},
+                        json=self.request_body(messages, stream=False))
+                    if response.status_code in {429, 500, 502, 503} and attempt == 0:
+                        time.sleep(1)
+                        continue
+                    if response.is_error:
+                        # Never persist provider bodies/headers: they can echo credentials or account details.
+                        raise RuntimeError(f"模型接口返回 HTTP {response.status_code}；未保存响应正文。")
+                    body = response.json()
+                    usage = body.get("usage") or {}
+                    content = (body.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+                else:
+                    content, usage = self._stream(messages, step)
+            except _RetryStatus as retry:
+                if attempt == 0:
+                    time.sleep(1)
+                    continue
+                raise RuntimeError(f"模型接口返回 HTTP {retry.status}；未保存响应正文。") from None
             except httpx.HTTPError:
                 if attempt == 0:
+                    self._reset_stream(step)
                     time.sleep(0.5)
                     continue
                 raise RuntimeError("模型连接失败；请检查接口、网络与超时配置。") from None
-            if response.status_code in {429, 500, 502, 503} and attempt == 0:
-                time.sleep(1)
-                continue
             break
-        if response is None or response.is_error:
-            # Never persist provider bodies/headers: they can echo credentials or account details.
-            raise RuntimeError(f"模型接口返回 HTTP {response.status_code if response is not None else 'unknown'}；未保存响应正文。")
-        body = response.json()
-        usage = body.get("usage") or {}
         self.tokens["prompt"] += usage.get("prompt_tokens", 0) or 0
         self.tokens["completion"] += usage.get("completion_tokens", 0) or 0
-        content = (body.get("choices") or [{}])[0].get("message", {}).get("content") or ""
         try:
             return self.message(parse_decision(content))
         except ValidationError as error:
@@ -123,6 +151,54 @@ class CompatibleModel(ModelBase):
                                + json.dumps(problems, ensure_ascii=False), "extra": {"cost": 0}}) from None
         except ValueError:
             raise FormatError({"role": "user", "content": "动作格式不合法。只输出一个符合 Schema 的 JSON 对象。", "extra": {"cost": 0}}) from None
+
+    def _reset_stream(self, step):
+        # A retried attempt would duplicate already-streamed deltas; tell the client to clear them.
+        if self.on_delta is not None and self._stream_emitted:
+            self.on_delta(step, None, 0)
+
+    def _stream(self, messages, step):
+        """Stream an OpenAI-compatible SSE response; deltas are throttled through on_delta."""
+        parts, pending, seq = [], [], 0
+        last_flush, usage = time.monotonic(), {}
+        with self.client.stream("POST", self.settings.base_url + "/chat/completions",
+                                headers={"Authorization": "Bearer " + self.settings.api_key},
+                                json=self.request_body(messages, stream=True)) as response:
+            if response.status_code in {429, 500, 502, 503}:
+                raise _RetryStatus(response.status_code)
+            if response.is_error:
+                raise RuntimeError(f"模型接口返回 HTTP {response.status_code}；未保存响应正文。")
+            for line in response.iter_lines():
+                if isinstance(line, bytes):
+                    line = line.decode("utf-8", "replace")
+                if not line.startswith("data:"):
+                    continue
+                payload = line[5:].strip()
+                if payload == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(payload)
+                except ValueError:
+                    continue
+                if chunk.get("usage"):
+                    usage = chunk["usage"]
+                choices = chunk.get("choices") or []
+                delta = (choices[0].get("delta") or {}).get("content") if choices else None
+                if not delta:
+                    continue
+                parts.append(delta)
+                pending.append(delta)
+                now = time.monotonic()
+                if now - last_flush >= 0.2 or sum(len(item) for item in pending) >= 240:
+                    seq += 1
+                    self._stream_emitted = True
+                    self.on_delta(step, "".join(pending), seq)
+                    pending, last_flush = [], now
+        if pending:
+            seq += 1
+            self._stream_emitted = True
+            self.on_delta(step, "".join(pending), seq)
+        return "".join(parts), usage
 
     def close(self):
         self.client.close()

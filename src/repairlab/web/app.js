@@ -224,6 +224,15 @@ function renderCandidates(w, taskId = state.selected) {
   const labels = {suspected:'待验证', confirmed:'已复现断言不匹配', rejected:'假设已否定', inconclusive:'证据不足'};
   $('candidates').innerHTML = candidates.map(c => `<details class="candidate" ${c.status === 'confirmed' ? 'open' : ''}><summary><b>${escape(c.id)} · ${escape(labels[c.status] || c.status)}</b><span>${escape(c.summary)}</span></summary><p><b>预期：</b>${escape(c.expectation)}</p><p><b>依据：</b>${escape(c.basis)} (${escape((c.basis_paths || []).join(', '))})</p><p>涉及源码：${escape(c.paths.join(', '))}</p>${c.resolution ? `<p>处置：${escape(c.resolution)}</p>` : ''}${c.baseline_probe ? `<p>原始复现：${escape(c.baseline_probe.category)} · 最近复现：${escape(c.latest_probe.category)} / 代码版本 ${c.latest_probe.revision}</p>` : ''}${c.artifact ? `<a href="/api/tasks/${escape(taskId)}/artifacts/reproducer-${escape(c.id)}">下载复现测试 ↗</a>` : ''}<small>行为依据由模型解释，复现成功不代表独立确认了业务要求。</small></details>`).join('');
 }
+function streamBubble(step) {
+  let el = document.getElementById('stream-' + step);
+  if (!el) {
+    el = document.createElement('div'); el.className = 'event streaming'; el.id = 'stream-' + step;
+    el.innerHTML = `<div class="event-top"><span class="event-title">模型输出 · 流式</span><span>STEP ${step}</span></div><pre></pre>`;
+    $('timeline').appendChild(el);
+  }
+  return el;
+}
 function appendEvent(event) {
   if (state.eventIds.has(event.id)) return;
   state.eventIds.add(event.id); state.cursor = Math.max(state.cursor, event.id);
@@ -234,6 +243,13 @@ function appendEvent(event) {
     return;
   }
   if (event.kind === 'thinking') return;
+  if (event.kind === 'model_output') {
+    const bubble = streamBubble(d.step), body = bubble.querySelector('pre');
+    if (d.delta == null) body.textContent = '输出中断，正在重试…';
+    else body.textContent += d.delta;
+    return;
+  }
+  if (event.kind === 'action' || event.kind === 'format_error') document.getElementById('stream-' + d.step)?.remove();
   const title = event.kind === 'action' ? tools[d.action.tool] : event.kind === 'observation' ? (d.ok ? '获得执行反馈' : '发现问题，等待调整') : ({started:'任务开始', format_error:'动作格式需修正', verification_started:'开始独立验收', verification:'验收完成', finished:'任务结束', error:'执行异常', cancel_requested:'请求停止', interrupted:'服务重启'}[event.kind] || event.kind);
   const detail = event.kind === 'action' ? d.note : event.kind === 'observation' ? (d.error || d.category) : d.detail || d.note || statusNames[d.status] || '';
   const el = document.createElement('div'); el.className = 'event' + (d.ok === false || ['error','format_error'].includes(event.kind) ? ' error' : '');

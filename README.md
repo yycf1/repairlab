@@ -113,7 +113,7 @@ uv run repairlab run --profile .\my-repo.json --mode model --backend docker
 src/repairlab/
   _vendor/mini/       固定版本的上游 Agent 核心
   agent.py           控制器钩子、预算、终止条件
-  model.py           模型协议、JSON 校验、上下文裁剪、演示适配器
+  model.py           模型协议、JSON 校验、上下文裁剪、SSE 流式、演示适配器
   repository.py      快照、代码定位、受限编辑、diff
   preflight.py       本地仓库配置、环境及可选测试收集检查
   discovery.py       从文件结构及项目配置识别源码和测试
