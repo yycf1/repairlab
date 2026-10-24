@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "kind": "real_model_bundled_fixtures",
+  "real_model_evaluation": true,
+  "scope": "真实模型在内置自建夹具上的评测：状态分布、控制拦截、用量与耗时；不构成外部基准修复率证据，样本与预算见任务计划。",
+  "model": "qwen3.8-max",
+  "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "backend": "local",
+  "limits": {
+    "max_steps": 20,
+    "max_tokens": 60000,
+    "max_seconds": 600,
+    "command_seconds": 30,
+    "context_chars": 24000,
+    "max_test_runs": 8
+  },
+  "python": "3.13.2",
+  "platform": "Windows",
+  "started_utc": "2026-10-24T06:40:19+00:00",
+  "results": [
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {},
+      "model_calls": 10,
+      "tokens": {
+        "prompt": 23611,
+        "completion": 1273
+      },
+      "seconds": 49.064,
+      "round": 1,
+      "patch_sha256": "423d251b9e92f30b48b15a8622084edb38642ce5b398b226b9a47ac0d660e489",
+      "suites": {
+        "acceptance": {
+          "passed": 5
+        },
+        "regression": {
+          "passed": 3
+        }
+      },
+      "fixture": "boundary-discount",
+      "task_kind": "repair",
+      "strategy": "feedback",
+      "repeat": 1,
+      "fixture_sha256": "804e0f2fac65bd7f7e88940209f573180d773cfb015527b84f60020d3c5c354a"
+    }
+  ],
+  "aggregates": {
+    "total": 1,
+    "status_counts": {
+      "passed": 1
+    },
+    "by_fixture": {
+      "boundary-discount": {
+        "passed": 1
+      }
+    },
+    "control_stats_totals": {},
+    "tokens_total": {
+      "prompt": 23611,
+      "completion": 1273
+    },
+    "model_calls": {
+      "total": 10,
+      "mean": 10.0
+    },
+    "seconds": {
+      "mean": 49.1,
+      "max": 49.064
+    }
+  }
+}

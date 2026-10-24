@@ -1,0 +1,624 @@
+{
+  "schema_version": 1,
+  "kind": "real_model_bundled_fixtures",
+  "real_model_evaluation": true,
+  "scope": "真实模型在内置自建夹具上的评测：状态分布、控制拦截、用量与耗时；不构成外部基准修复率证据，样本与预算见任务计划。",
+  "model": "qwen3.8-max",
+  "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "backend": "local",
+  "limits": {
+    "max_steps": 20,
+    "max_tokens": 60000,
+    "max_seconds": 600,
+    "command_seconds": 30,
+    "context_chars": 24000,
+    "max_test_runs": 8
+  },
+  "python": "3.13.2",
+  "platform": "Windows",
+  "started_utc": "2026-10-24T06:43:11+00:00",
+  "results": [
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {},
+      "model_calls": 7,
+      "tokens": {
+        "prompt": 14497,
+        "completion": 1026
+      },
+      "seconds": 39.136,
+      "round": 1,
+      "patch_sha256": "423d251b9e92f30b48b15a8622084edb38642ce5b398b226b9a47ac0d660e489",
+      "suites": {
+        "acceptance": {
+          "passed": 5
+        },
+        "regression": {
+          "passed": 3
+        }
+      },
+      "fixture": "boundary-discount",
+      "task_kind": "repair",
+      "strategy": "single_shot",
+      "repeat": 1,
+      "fixture_sha256": "804e0f2fac65bd7f7e88940209f573180d773cfb015527b84f60020d3c5c354a"
+    },
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {},
+      "model_calls": 7,
+      "tokens": {
+        "prompt": 14612,
+        "completion": 996
+      },
+      "seconds": 34.857,
+      "round": 1,
+      "patch_sha256": "423d251b9e92f30b48b15a8622084edb38642ce5b398b226b9a47ac0d660e489",
+      "suites": {
+        "acceptance": {
+          "passed": 5
+        },
+        "regression": {
+          "passed": 3
+        }
+      },
+      "fixture": "boundary-discount",
+      "task_kind": "repair",
+      "strategy": "single_shot",
+      "repeat": 2,
+      "fixture_sha256": "804e0f2fac65bd7f7e88940209f573180d773cfb015527b84f60020d3c5c354a"
+    },
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {},
+      "model_calls": 7,
+      "tokens": {
+        "prompt": 15054,
+        "completion": 1255
+      },
+      "seconds": 42.042,
+      "round": 1,
+      "patch_sha256": "423d251b9e92f30b48b15a8622084edb38642ce5b398b226b9a47ac0d660e489",
+      "suites": {
+        "acceptance": {
+          "passed": 5
+        },
+        "regression": {
+          "passed": 3
+        }
+      },
+      "fixture": "boundary-discount",
+      "task_kind": "repair",
+      "strategy": "single_shot",
+      "repeat": 3,
+      "fixture_sha256": "804e0f2fac65bd7f7e88940209f573180d773cfb015527b84f60020d3c5c354a"
+    },
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {},
+      "model_calls": 10,
+      "tokens": {
+        "prompt": 23535,
+        "completion": 1430
+      },
+      "seconds": 54.301,
+      "round": 1,
+      "patch_sha256": "423d251b9e92f30b48b15a8622084edb38642ce5b398b226b9a47ac0d660e489",
+      "suites": {
+        "acceptance": {
+          "passed": 5
+        },
+        "regression": {
+          "passed": 3
+        }
+      },
+      "fixture": "boundary-discount",
+      "task_kind": "repair",
+      "strategy": "feedback",
+      "repeat": 1,
+      "fixture_sha256": "804e0f2fac65bd7f7e88940209f573180d773cfb015527b84f60020d3c5c354a"
+    },
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {},
+      "model_calls": 10,
+      "tokens": {
+        "prompt": 23689,
+        "completion": 1008
+      },
+      "seconds": 46.263,
+      "round": 1,
+      "patch_sha256": "423d251b9e92f30b48b15a8622084edb38642ce5b398b226b9a47ac0d660e489",
+      "suites": {
+        "acceptance": {
+          "passed": 5
+        },
+        "regression": {
+          "passed": 3
+        }
+      },
+      "fixture": "boundary-discount",
+      "task_kind": "repair",
+      "strategy": "feedback",
+      "repeat": 2,
+      "fixture_sha256": "804e0f2fac65bd7f7e88940209f573180d773cfb015527b84f60020d3c5c354a"
+    },
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {},
+      "model_calls": 9,
+      "tokens": {
+        "prompt": 21043,
+        "completion": 1183
+      },
+      "seconds": 50.246,
+      "round": 1,
+      "patch_sha256": "423d251b9e92f30b48b15a8622084edb38642ce5b398b226b9a47ac0d660e489",
+      "suites": {
+        "acceptance": {
+          "passed": 5
+        },
+        "regression": {
+          "passed": 3
+        }
+      },
+      "fixture": "boundary-discount",
+      "task_kind": "repair",
+      "strategy": "feedback",
+      "repeat": 3,
+      "fixture_sha256": "804e0f2fac65bd7f7e88940209f573180d773cfb015527b84f60020d3c5c354a"
+    },
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {
+        "finding_not_read": 1
+      },
+      "model_calls": 9,
+      "tokens": {
+        "prompt": 21602,
+        "completion": 1162
+      },
+      "seconds": 43.968,
+      "round": 1,
+      "patch_sha256": "49601ab4c12494be3b48e15c76be85d9689705e094d35f530fba3d00dc2affb0",
+      "suites": {
+        "acceptance": {
+          "passed": 4
+        },
+        "regression": {
+          "passed": 3
+        }
+      },
+      "fixture": "csv-tags",
+      "task_kind": "repair",
+      "strategy": "single_shot",
+      "repeat": 1,
+      "fixture_sha256": "68439a89dc8df47644381f539056c239d855fefb844f8e0235e9f8411b323b54"
+    },
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {},
+      "model_calls": 7,
+      "tokens": {
+        "prompt": 14862,
+        "completion": 779
+      },
+      "seconds": 33.065,
+      "round": 1,
+      "patch_sha256": "49601ab4c12494be3b48e15c76be85d9689705e094d35f530fba3d00dc2affb0",
+      "suites": {
+        "acceptance": {
+          "passed": 4
+        },
+        "regression": {
+          "passed": 3
+        }
+      },
+      "fixture": "csv-tags",
+      "task_kind": "repair",
+      "strategy": "single_shot",
+      "repeat": 2,
+      "fixture_sha256": "68439a89dc8df47644381f539056c239d855fefb844f8e0235e9f8411b323b54"
+    },
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {},
+      "model_calls": 7,
+      "tokens": {
+        "prompt": 15148,
+        "completion": 1015
+      },
+      "seconds": 38.822,
+      "round": 1,
+      "patch_sha256": "37beac974e5d47f4a33cc38acce08a70554df7ffa6920fb9a2d49f408f8d08ff",
+      "suites": {
+        "acceptance": {
+          "passed": 4
+        },
+        "regression": {
+          "passed": 3
+        }
+      },
+      "fixture": "csv-tags",
+      "task_kind": "repair",
+      "strategy": "single_shot",
+      "repeat": 3,
+      "fixture_sha256": "68439a89dc8df47644381f539056c239d855fefb844f8e0235e9f8411b323b54"
+    },
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {},
+      "model_calls": 9,
+      "tokens": {
+        "prompt": 21389,
+        "completion": 1350
+      },
+      "seconds": 53.448,
+      "round": 1,
+      "patch_sha256": "3285e6e08382e1f2212bdd402b98528af4c370cd207a218433ff7b0348aa4703",
+      "suites": {
+        "acceptance": {
+          "passed": 4
+        },
+        "regression": {
+          "passed": 3
+        }
+      },
+      "fixture": "csv-tags",
+      "task_kind": "repair",
+      "strategy": "feedback",
+      "repeat": 1,
+      "fixture_sha256": "68439a89dc8df47644381f539056c239d855fefb844f8e0235e9f8411b323b54"
+    },
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {},
+      "model_calls": 9,
+      "tokens": {
+        "prompt": 21336,
+        "completion": 976
+      },
+      "seconds": 44.248,
+      "round": 1,
+      "patch_sha256": "3285e6e08382e1f2212bdd402b98528af4c370cd207a218433ff7b0348aa4703",
+      "suites": {
+        "acceptance": {
+          "passed": 4
+        },
+        "regression": {
+          "passed": 3
+        }
+      },
+      "fixture": "csv-tags",
+      "task_kind": "repair",
+      "strategy": "feedback",
+      "repeat": 2,
+      "fixture_sha256": "68439a89dc8df47644381f539056c239d855fefb844f8e0235e9f8411b323b54"
+    },
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {},
+      "model_calls": 10,
+      "tokens": {
+        "prompt": 24294,
+        "completion": 852
+      },
+      "seconds": 43.08,
+      "round": 1,
+      "patch_sha256": "6a09bc2a5e6258486cfcaa90e9b11a7b117120e3d9d72048d5d1ec007b63a889",
+      "suites": {
+        "acceptance": {
+          "passed": 4
+        },
+        "regression": {
+          "passed": 3
+        }
+      },
+      "fixture": "csv-tags",
+      "task_kind": "repair",
+      "strategy": "feedback",
+      "repeat": 3,
+      "fixture_sha256": "68439a89dc8df47644381f539056c239d855fefb844f8e0235e9f8411b323b54"
+    },
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {},
+      "model_calls": 7,
+      "tokens": {
+        "prompt": 14614,
+        "completion": 826
+      },
+      "seconds": 35.363,
+      "round": 1,
+      "patch_sha256": "557ea6e32f1cf16f97f7c2fd90af64e5ed7260836eaf86c81e02d4cfae560817",
+      "suites": {
+        "acceptance": {
+          "passed": 5
+        },
+        "regression": {
+          "passed": 3
+        }
+      },
+      "fixture": "pagination",
+      "task_kind": "repair",
+      "strategy": "single_shot",
+      "repeat": 1,
+      "fixture_sha256": "c510bccb224c4d13683b722e58043c7d19db5d861c09a8bcf04cfb4d4ac8461a"
+    },
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {},
+      "model_calls": 7,
+      "tokens": {
+        "prompt": 14999,
+        "completion": 1024
+      },
+      "seconds": 43.989,
+      "round": 1,
+      "patch_sha256": "557ea6e32f1cf16f97f7c2fd90af64e5ed7260836eaf86c81e02d4cfae560817",
+      "suites": {
+        "acceptance": {
+          "passed": 5
+        },
+        "regression": {
+          "passed": 3
+        }
+      },
+      "fixture": "pagination",
+      "task_kind": "repair",
+      "strategy": "single_shot",
+      "repeat": 2,
+      "fixture_sha256": "c510bccb224c4d13683b722e58043c7d19db5d861c09a8bcf04cfb4d4ac8461a"
+    },
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {},
+      "model_calls": 7,
+      "tokens": {
+        "prompt": 14184,
+        "completion": 1177
+      },
+      "seconds": 43.651,
+      "round": 1,
+      "patch_sha256": "557ea6e32f1cf16f97f7c2fd90af64e5ed7260836eaf86c81e02d4cfae560817",
+      "suites": {
+        "acceptance": {
+          "passed": 5
+        },
+        "regression": {
+          "passed": 3
+        }
+      },
+      "fixture": "pagination",
+      "task_kind": "repair",
+      "strategy": "single_shot",
+      "repeat": 3,
+      "fixture_sha256": "c510bccb224c4d13683b722e58043c7d19db5d861c09a8bcf04cfb4d4ac8461a"
+    },
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {},
+      "model_calls": 11,
+      "tokens": {
+        "prompt": 26972,
+        "completion": 2000
+      },
+      "seconds": 65.602,
+      "round": 1,
+      "patch_sha256": "557ea6e32f1cf16f97f7c2fd90af64e5ed7260836eaf86c81e02d4cfae560817",
+      "suites": {
+        "acceptance": {
+          "passed": 5
+        },
+        "regression": {
+          "passed": 3
+        }
+      },
+      "fixture": "pagination",
+      "task_kind": "repair",
+      "strategy": "feedback",
+      "repeat": 1,
+      "fixture_sha256": "c510bccb224c4d13683b722e58043c7d19db5d861c09a8bcf04cfb4d4ac8461a"
+    },
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {},
+      "model_calls": 10,
+      "tokens": {
+        "prompt": 23735,
+        "completion": 1474
+      },
+      "seconds": 52.781,
+      "round": 1,
+      "patch_sha256": "557ea6e32f1cf16f97f7c2fd90af64e5ed7260836eaf86c81e02d4cfae560817",
+      "suites": {
+        "acceptance": {
+          "passed": 5
+        },
+        "regression": {
+          "passed": 3
+        }
+      },
+      "fixture": "pagination",
+      "task_kind": "repair",
+      "strategy": "feedback",
+      "repeat": 2,
+      "fixture_sha256": "c510bccb224c4d13683b722e58043c7d19db5d861c09a8bcf04cfb4d4ac8461a"
+    },
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {},
+      "model_calls": 10,
+      "tokens": {
+        "prompt": 23708,
+        "completion": 1613
+      },
+      "seconds": 57.371,
+      "round": 1,
+      "patch_sha256": "557ea6e32f1cf16f97f7c2fd90af64e5ed7260836eaf86c81e02d4cfae560817",
+      "suites": {
+        "acceptance": {
+          "passed": 5
+        },
+        "regression": {
+          "passed": 3
+        }
+      },
+      "fixture": "pagination",
+      "task_kind": "repair",
+      "strategy": "feedback",
+      "repeat": 3,
+      "fixture_sha256": "c510bccb224c4d13683b722e58043c7d19db5d861c09a8bcf04cfb4d4ac8461a"
+    },
+    {
+      "status": "budget_exhausted",
+      "result": "token_budget",
+      "error": "",
+      "control_stats": {
+        "finding_not_linked": 1
+      },
+      "model_calls": 18,
+      "tokens": {
+        "prompt": 57450,
+        "completion": 3889
+      },
+      "seconds": 117.477,
+      "round": 1,
+      "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "suites": {},
+      "fixture": "investigation",
+      "task_kind": "inspect",
+      "strategy": "feedback",
+      "repeat": 1,
+      "fixture_sha256": "21c30f1d2022cd5e6e91bf11813310afb5327220d739b94c8428db00060c96d7"
+    },
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {},
+      "model_calls": 19,
+      "tokens": {
+        "prompt": 59246,
+        "completion": 2879
+      },
+      "seconds": 103.86,
+      "round": 1,
+      "patch_sha256": "301aa8646a28c3de5dde941e649f34846523e4f792b6fee5332361d40bc6a05b",
+      "suites": {
+        "acceptance": {
+          "passed": 3
+        },
+        "regression": {
+          "passed": 2
+        }
+      },
+      "fixture": "investigation",
+      "task_kind": "inspect",
+      "strategy": "feedback",
+      "repeat": 2,
+      "fixture_sha256": "21c30f1d2022cd5e6e91bf11813310afb5327220d739b94c8428db00060c96d7"
+    },
+    {
+      "status": "passed",
+      "result": "verified",
+      "error": "",
+      "control_stats": {},
+      "model_calls": 19,
+      "tokens": {
+        "prompt": 58691,
+        "completion": 3404
+      },
+      "seconds": 119.044,
+      "round": 1,
+      "patch_sha256": "301aa8646a28c3de5dde941e649f34846523e4f792b6fee5332361d40bc6a05b",
+      "suites": {
+        "acceptance": {
+          "passed": 3
+        },
+        "regression": {
+          "passed": 2
+        }
+      },
+      "fixture": "investigation",
+      "task_kind": "inspect",
+      "strategy": "feedback",
+      "repeat": 3,
+      "fixture_sha256": "21c30f1d2022cd5e6e91bf11813310afb5327220d739b94c8428db00060c96d7"
+    }
+  ],
+  "aggregates": {
+    "total": 21,
+    "status_counts": {
+      "passed": 20,
+      "budget_exhausted": 1
+    },
+    "by_fixture": {
+      "boundary-discount": {
+        "passed": 6
+      },
+      "csv-tags": {
+        "passed": 6
+      },
+      "pagination": {
+        "passed": 6
+      },
+      "investigation": {
+        "budget_exhausted": 1,
+        "passed": 2
+      }
+    },
+    "control_stats_totals": {
+      "finding_not_read": 1,
+      "finding_not_linked": 1
+    },
+    "tokens_total": {
+      "prompt": 524660,
+      "completion": 31318
+    },
+    "model_calls": {
+      "total": 209,
+      "mean": 10.0
+    },
+    "seconds": {
+      "mean": 55.4,
+      "max": 119.044
+    }
+  }
+}
