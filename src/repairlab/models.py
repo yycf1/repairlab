@@ -6,11 +6,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 class Action(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    tool: Literal["list_files", "search", "read_file", "symbols", "edit_file", "run_tests", "update_plan",
-                  "record_finding", "get_patch", "rollback_edit", "submit", "finish",
+    tool: Literal["list_files", "search", "read_file", "symbols", "references", "outline", "edit_file",
+                  "run_tests", "update_plan", "record_finding", "get_patch", "rollback_edit", "submit", "finish",
                   "record_candidate", "resolve_candidate", "write_reproducer", "run_reproducer"]
     path: str = ""
     query: str = Field(default="", max_length=300)
+    symbol: str = Field(default="", max_length=80)
     start_line: int = Field(default=1, ge=1)
     end_line: int = Field(default=160, ge=1)
     old: str = Field(default="", max_length=30000)

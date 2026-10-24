@@ -7,7 +7,7 @@ statusNames.blocked = '暂未解决';
 statusNames.reviewed = '检查完成 · 未提交补丁';
 statusNames.running = 'Agent 执行中';
 const tools = { list_files: '查看文件', search: '搜索代码', read_file: '读取文件', symbols: '定位符号', edit_file: '修改源代码', run_tests: '运行开发测试', update_plan: '更新修复计划', record_finding: '记录修复假设', get_patch: '审查当前补丁', rollback_edit: '撤销最近修改', submit: '提交候选补丁', finish: '报告未解决原因' };
-Object.assign(tools, {record_candidate:'登记候选问题', resolve_candidate:'判断候选问题', write_reproducer:'构造最小复现', run_reproducer:'验证问题假设', finish:'结束并报告调查结果', update_plan:'调整行动计划'});
+Object.assign(tools, {record_candidate:'登记候选问题', resolve_candidate:'判断候选问题', write_reproducer:'构造最小复现', run_reproducer:'验证问题假设', finish:'结束并报告调查结果', update_plan:'调整行动计划', references:'定位引用', outline:'查看仓库骨架'});
 const TEST_CATEGORIES = {ok:'通过', test_failure:'断言失败', code_error:'语法错误', collection_error:'收集失败', environment_error:'环境故障', timeout:'超时', cancelled:'取消', output_limit:'输出超限', workspace_changed_during_test:'测试期间代码被改动', insufficient_test_evidence:'测试证据不完整', reproducer_error:'复现测试自身错误', reproducer_no_assertion_result:'复现缺少断言结果', probe_workspace_changed:'复现期间代码被改动'};
 const escape = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(path, options = {}) {

@@ -150,6 +150,47 @@ class Repository:
             "line": n.lineno, "end_line": n.end_lineno} for n in ast.walk(tree)
             if isinstance(n, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))][:100]}
 
+    def references(self, symbol):
+        """AST-level usages of one identifier: loads, attribute reads and import sites."""
+        matches = []
+        for name in self.files():
+            if not name.endswith(".py"):
+                continue
+            try:
+                tree = ast.parse(self.path(name).read_text(encoding="utf-8"))
+            except (SyntaxError, ValueError):
+                continue
+            for node in ast.walk(tree):
+                hit = (isinstance(node, ast.Name) and node.id == symbol) or \
+                      (isinstance(node, ast.Attribute) and node.attr == symbol) or \
+                      (isinstance(node, ast.ImportFrom) and any(alias.name == symbol for alias in node.names)) or \
+                      (isinstance(node, ast.Import) and any(alias.name == symbol or
+                                                            alias.name.split(".", 1)[0] == symbol for alias in node.names))
+                if hit:
+                    matches.append({"path": name, "line": node.lineno})
+                    if len(matches) >= 60:
+                        return {"symbol": symbol, "matches": matches, "truncated": True}
+        return {"symbol": symbol, "matches": matches, "truncated": False}
+
+    def outline(self):
+        """Top-level skeleton of every Python file: definitions with line numbers."""
+        files, truncated = [], False
+        for name in self.files():
+            if not name.endswith(".py"):
+                continue
+            try:
+                tree = ast.parse(self.path(name).read_text(encoding="utf-8"))
+            except (SyntaxError, ValueError):
+                continue
+            symbols = [{"name": n.name, "kind": "class" if isinstance(n, ast.ClassDef) else "def", "line": n.lineno}
+                       for n in tree.body if isinstance(n, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))][:24]
+            if symbols:
+                if len(files) >= 40:
+                    truncated = True
+                    break
+                files.append({"path": name, "symbols": symbols})
+        return {"files": files, "truncated": truncated}
+
     def edit(self, name, old, new):
         if not self.editable(name):
             raise ValueError("Only explicitly allowed source files may be changed; tests/configuration are protected")

@@ -144,6 +144,10 @@ class ToolEnvironment:
                 self.state.inspected_files = (self.state.inspected_files + [name])[-50:]
         elif tool == "symbols":
             data = self.repo.symbols(action.path)
+        elif tool == "references":
+            data = self.repo.references(action.symbol.strip())
+        elif tool == "outline":
+            data = self.repo.outline()
         elif tool == "update_plan":
             self.state.plan = action.plan
             self.state.plan_history = (self.state.plan_history + [{"items": action.plan, "revision": self.state.revision,
