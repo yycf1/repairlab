@@ -52,20 +52,15 @@ function setWorkspace(id, { keepComposer = false } = {}) {
   const entry = workspaceEntry();
   $('workspace-name').textContent = entry?.name || id;
   $('hero-note').textContent = entry
-    ? (entry.kind === 'local' ? `${entry.name} · 在下方描述问题或选择自主检查；也可先检查执行环境。`
+    ? (entry.kind === 'local' ? `${entry.name} · 在下方描述要修复的问题，留空则自主检查；也可先检查执行环境。`
       : `当前工作区：${entry.name}${entry.description ? ' · ' + String(entry.description).slice(0, 60) : ''}`)
     : $('hero-note').textContent;
   const custom = entry?.kind === 'local';
-  const noDemo = custom || entry?.demo === false;
-  $('mode').querySelector('[value="demo"]').disabled = noDemo;
-  if (noDemo) $('mode').value = 'model';
-  $('task-kind').value = custom ? 'inspect' : 'repair';
   $('repository-tools').classList.toggle('hidden', !custom);
   $('repository-source').textContent = entry?.source || '';
   renderPreflight('repository-preflight', entry?.preflight);
   $('allow-local').checked = false;
   if (!keepComposer) $('composer-text').value = '';
-  setTaskKind();
   buildWorkspaceMenu();
   refreshTasks().catch(() => {});
 }
@@ -473,16 +468,7 @@ document.querySelectorAll('.tab').forEach(button => button.onclick = () => {
 
 /* ---------- 底部输入框：新建任务 / 追加指令 ---------- */
 function setBackend() { $('local-consent').classList.toggle('hidden', $('backend').value !== 'local'); }
-function setMode() {
-  if ($('mode').value === 'demo' && $('task-kind').value === 'inspect') { $('task-kind').value = 'repair'; setTaskKind(); return; }
-}
-function setTaskKind() {
-  const inspect = $('task-kind').value === 'inspect';
-  if (inspect) { $('mode').value = 'model'; $('strategy').value = 'feedback'; }
-  $('strategy').disabled = inspect;
-  $('composer-text').placeholder = inspect ? '可留空（全面自主检查），或填写关注的模块、边界输入和行为约定…' : '描述要修复的问题：预期行为、实际结果、复现条件…';
-  if (['20','32'].includes($('steps').value)) $('steps').value = inspect ? '32' : '20';
-}
+const COMPOSER_PLACEHOLDER = '描述要修复的问题：预期行为、实际结果、复现条件；留空则自主检查并修复。';
 function updateComposerMode(task) {
   // task === null → composing a new task; otherwise follow-up mode bound to the task's state.
   $('composer-settings').classList.toggle('hidden', task !== null);
@@ -490,9 +476,7 @@ function updateComposerMode(task) {
     $('composer-send').disabled = false;
     $('composer-send').title = '发送（Enter 发送，Shift+Enter 换行）';
     $('composer-hint').textContent = 'Enter 发送 · Shift+Enter 换行';
-    $('composer-text').placeholder = $('task-kind').value === 'inspect'
-      ? '可留空（全面自主检查），或填写关注的模块、边界输入和行为约定…'
-      : '描述要修复的问题：预期行为、实际结果、复现条件…';
+    $('composer-text').placeholder = COMPOSER_PLACEHOLDER;
     return;
   }
   const canFollowUp = terminal.has(task.status) && task.mode === 'model';
@@ -526,17 +510,19 @@ async function sendComposer() {
     finally { updateComposerMode(await api(`/api/tasks/${state.selected}`).catch(() => null)); }
     return;
   }
-  if (!text && $('task-kind').value !== 'inspect') { $('form-error').textContent = '请描述要修复的问题；或切换为自主检查模式。'; return; }
+  // 有明确描述 → 定点修复；留空 → 自主检查并修复。真实模型 + 反馈迭代是唯一产品路径。
+  const inspect = !text;
   if ($('backend').value === 'local' && !$('allow-local').checked) { $('form-error').textContent = '请先确认只在本机运行可信代码。'; return; }
-  if ($('mode').value === 'model' && !state.config.model_configured) { $('form-error').textContent = '尚未配置真实模型，请点击右上角配置后重试。'; return; }
+  if (!state.config.model_configured) { $('form-error').textContent = '尚未配置真实模型，请点击右上角配置后重试。'; return; }
   $('composer-send').disabled = true;
   try {
     const task = await api('/api/tasks', { method: 'POST', body: JSON.stringify({
-      fixture: state.workspace, issue: text, task_kind: $('task-kind').value, mode: $('mode').value,
-      backend: $('backend').value, strategy: $('strategy').value, allow_local: $('allow-local').checked,
-      limits: { max_steps: Number($('steps').value), command_seconds: Number($('timeout').value),
-        max_tokens: $('task-kind').value === 'inspect' ? 60000 : 30000,
-        max_seconds: $('task-kind').value === 'inspect' ? 600 : 300 } }) });
+      fixture: state.workspace, issue: text, task_kind: inspect ? 'inspect' : 'repair', mode: 'model',
+      backend: $('backend').value, strategy: 'feedback', allow_local: $('allow-local').checked,
+      limits: { max_steps: inspect ? Math.max(Number($('steps').value) || 20, 32) : Number($('steps').value),
+        command_seconds: Number($('timeout').value),
+        max_tokens: inspect ? 60000 : 30000,
+        max_seconds: inspect ? 600 : 300 } }) });
     $('composer-text').value = ''; autoGrow();
     await openTask(task.id); await refreshTasks();
   } catch (e) { $('form-error').textContent = e.message; }
@@ -572,8 +558,6 @@ $('resume').onclick = async () => {
   } catch (e) { $('form-error').textContent = e.message; }
   finally { $('resume').disabled = false; }
 };
-$('task-kind').onchange = setTaskKind;
-$('mode').onchange = setMode;
 $('backend').onchange = setBackend;
 
 /* ---------- 模型设置 ---------- */

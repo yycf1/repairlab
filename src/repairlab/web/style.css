@@ -315,13 +315,6 @@ main {
   padding: 5px 10px; border-radius: 5px; line-height: 1.5;
 }
 .composer-settings .consent input { width: 14px; min-width: 14px; margin: 0; flex-shrink: 0; }
-.composer-settings .limits { border: 0; padding: 0; margin: 0; font-size: 11px; color: #8b9986; }
-.composer-settings .limits summary { list-style: none; }
-.composer-settings .limits summary:before { content: '＋ '; color: #8b9986; }
-.composer-settings .limits[open] summary:before { content: '− '; }
-.composer-settings .limits .pair { display: flex; gap: 12px; margin-top: 8px; }
-.composer-settings .limits label { display: block; font-size: 11px; font-weight: 600; margin: 0 0 5px; color: #5d6a5f; }
-.composer-settings .limits .pair > div { min-width: 130px; }
 #repository-tools { display: flex; align-items: center; gap: 10px; }
 .ws-repo-name { font: 10px var(--mono); color: var(--muted); max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .text-button { color: var(--green); font-size: 11px; padding: 4px 0; text-align: left; }
@@ -405,6 +398,9 @@ fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 #repository-form textarea, #model-settings-fields textarea { min-height: 60px; }
 .dialog-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 18px; }
 .dialog-actions .primary { width: auto; }
+.dialog-budget { display: flex; gap: 18px; }
+.dialog-budget > div { flex: 1; min-width: 0; }
+.dialog-budget input { width: 100%; }
 .dialog-actions .secondary:disabled { opacity: .5; cursor: not-allowed; }
 .folder-picker {
   display: flex; flex-direction: column; align-items: center; justify-content: center;

@@ -59,17 +59,13 @@
   </div>
   <footer id="composer">
     <div id="composer-settings" class="composer-settings">
-      <select id="task-kind" title="任务目标"><option value="repair">修复指定问题</option><option value="inspect">自主检查并修复</option></select>
-      <select id="mode" title="运行方式"><option value="demo">脚本演示</option><option value="model">真实模型</option></select>
-      <select id="strategy" title="修复策略"><option value="feedback">反馈迭代</option><option value="single_shot">单次补丁尝试</option></select>
       <select id="backend" title="执行环境"><option value="docker">Docker 隔离环境</option><option value="local">本地执行 · 仅可信仓库</option></select>
       <label id="local-consent" class="consent hidden"><input type="checkbox" id="allow-local"><span>此仓库可信，我允许在本机运行测试。</span></label>
-      <details class="limits"><summary>预算</summary><div class="pair"><div><label for="steps">最大决策步数</label><input id="steps" type="number" min="1" max="60" value="20"></div><div><label for="timeout">单次测试超时 / 秒</label><input id="timeout" type="number" min="1" max="120" value="30"></div></div></details>
       <div id="repository-tools" class="hidden"><span class="ws-repo-name" id="repository-source"></span><button id="check-repository" class="text-button">检查环境</button><button id="collect-repository" class="text-button">收集测试</button></div>
     </div>
     <div id="repository-preflight" class="preflight" aria-live="polite"></div>
     <div class="composer-pill">
-      <textarea id="composer-text" rows="1" placeholder="描述要修复的问题；自主检查模式可只写关注方向…"></textarea>
+      <textarea id="composer-text" rows="1" placeholder="描述要修复的问题：预期行为、实际结果、复现条件；留空则自主检查并修复。"></textarea>
       <button id="composer-send" class="send-btn" title="发送（Enter 发送，Shift+Enter 换行）">↑</button>
     </div>
     <p id="composer-hint" class="composer-hint"></p>
@@ -118,6 +114,11 @@
       <label for="model-api-key">API Key</label>
       <div class="manual-directory"><input id="model-api-key" type="password" placeholder="sk-…" autocomplete="off" spellcheck="false"><button id="toggle-key" type="button" class="secondary">显示</button></div>
       <p class="field-note">已保存过密钥时可留空，保存将沿用原值。「测试连接」发送一条最小请求，不会保存任何内容。</p>
+      <div class="dialog-budget">
+        <div><label for="steps">最大决策步数</label><input id="steps" type="number" min="1" max="60" value="20"></div>
+        <div><label for="timeout">单次测试超时 / 秒</label><input id="timeout" type="number" min="1" max="120" value="30"></div>
+      </div>
+      <p class="field-note">预算约束 Agent 单轮的工作量：步数用尽或测试超时即停止，任务结束后可继续下达指令。</p>
       <div id="model-test-result" class="preflight" aria-live="polite"></div>
       <p id="model-settings-error" class="error-message" role="alert"></p>
     </fieldset>
