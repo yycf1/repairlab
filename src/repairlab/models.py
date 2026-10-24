@@ -25,6 +25,7 @@ class Action(BaseModel):
     basis_paths: list[str] = Field(default_factory=list, max_length=8)
     disposition: Literal["rejected", "inconclusive"] = "inconclusive"
     code: str = Field(default="", max_length=12000)
+    targets: list[str] = Field(default_factory=list, max_length=8)
 
     @model_validator(mode="after")
     def required_arguments(self):

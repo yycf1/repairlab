@@ -58,6 +58,8 @@ class WorkflowState(BaseModel):
             blockers.append("tests_not_current: run development tests after the latest source change")
         elif self.latest_test["category"] != "ok":
             blockers.append("tests_not_passed: fix or report the latest failure")
+        elif self.latest_test.get("scope") == "partial":
+            blockers.append("tests_partial: the latest run was a subset; a full development-test pass is required before submission")
         return blockers
 
     def snapshot(self, digest):

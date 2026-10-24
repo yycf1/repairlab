@@ -18,6 +18,7 @@ record_finding 的 paths 必须指向已读取文件，summary 说明观察到�
 若原始开发测试全部通过（缺陷未被现有测试覆盖），修改前必须先用 write_reproducer 写最小复现测试（导入真实仓库函数、含非平凡断言），run_reproducer 在原始快照上断言失败确认缺陷；修复完成后重跑同一复现必须通过才能 submit。复现一经记录不可修改；写错时用 resolve_candidate(disposition=rejected, summary=证据) 否定后重写。
 可用 get_patch 审查当前 diff，用 rollback_edit 撤销最近修改（最多保留四次）；撤销后也要重测。
 反馈迭代策略提交需满足：有计划、有原始测试、有非空源文件补丁，且当前代码版本开发测试通过。
+run_tests 可用 targets=[相对路径或 pytest 节点]（必须在开发测试范围内）只跑子集加快反馈；提交前需要一次全量开发测试通过，仅子集通过无法提交。
 无法继续时使用 finish，说明未复现、环境问题或未解决原因。不要为了结束任务而伪造 submit。
 测试命令由系统预设；工具错误是反馈，不要无限重复同一操作。环境故障应如实报告。
 submit 只表示提交候选补丁，最终结果由独立验证器判定。不要宣称未经验证的成功。
@@ -142,7 +143,8 @@ class RepairAgent(DefaultAgent):
             self.emit("milestone", {"kind": "test_result", "step": step, "category": evidence.get("category"),
                                     "counts": evidence.get("counts") or {},
                                     "failed_nodes": evidence.get("failed_nodes") or [],
-                                    "revision": evidence.get("revision"), "baseline": baseline})
+                                    "revision": evidence.get("revision"), "baseline": baseline,
+                                    "scope": evidence.get("scope", "all"), "targets": evidence.get("targets") or []})
             return
         if tool == "run_reproducer":
             candidate = self.env.investigation.candidate(data.get("candidate_id", ""))
@@ -163,22 +165,6 @@ class RepairAgent(DefaultAgent):
             self.emit("milestone", {"kind": "change", "step": step, "path": data.get("path", ""), "note": note})
         elif tool == "rollback_edit":
             self.emit("milestone", {"kind": "rollback", "step": step, "path": data.get("restored", "")})
-        elif tool == "run_tests":
-            evidence = data.get("evidence") or {}
-            baseline = self.env.state.baseline_test is not None and \
-                evidence.get("run_id") == self.env.state.baseline_test.get("run_id")
-            self.emit("milestone", {"kind": "test_result", "step": step, "category": evidence.get("category"),
-                                    "counts": evidence.get("counts") or {},
-                                    "failed_nodes": evidence.get("failed_nodes") or [],
-                                    "revision": evidence.get("revision"), "baseline": baseline})
-        elif tool == "run_reproducer":
-            candidate = self.env.investigation.candidate(data.get("candidate_id", ""))
-            evidence = data.get("evidence") or {}
-            self.emit("milestone", {"kind": "repro", "step": step, "candidate": candidate.get("id", ""),
-                                    "summary": candidate.get("summary", ""), "expectation": candidate.get("expectation", ""),
-                                    "confirmed": data.get("status") == "confirmed",
-                                    "first_probe": (candidate.get("baseline_probe") or {}).get("run_id") == evidence.get("run_id"),
-                                    "category": evidence.get("category")})
         elif tool == "record_candidate":
             candidate = data.get("candidate") or {}
             self.emit("milestone", {"kind": "candidate", "step": step, "candidate": candidate.get("id", ""),

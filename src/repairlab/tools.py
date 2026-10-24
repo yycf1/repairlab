@@ -190,7 +190,7 @@ class ToolEnvironment:
             text = "".join(patch)
             data = {"patch": text[:12000], "truncated": len(text) > 12000, "revision": self.state.revision}
         elif tool == "run_tests":
-            return self.run_tests()
+            return self.run_tests(action.targets)
         elif tool == "record_candidate":
             if self.state.task_kind == "repair":
                 raise PolicyError("record_candidate is for inspection mode; confirm the issue defect with write_reproducer",
@@ -230,16 +230,20 @@ class ToolEnvironment:
             data = {"finished": True, "reason": action.reason, "summary": action.summary}
         return Observation(ok=True, data=data)
 
-    def run_tests(self):
+    def run_tests(self, targets=None):
         if self.test_runs >= self.limits.max_test_runs:
             raise PolicyError("Development test-run budget exhausted; finish with the remaining blocker",
                               code="test_budget_exhausted")
         self.test_runs += 1
         before = self.digest()
-        data = self.runner.run_tests(self.repo.root, self.repo.profile.development_tests,
+        selected = self.select_targets(targets or [])
+        data = self.runner.run_tests(self.repo.root, selected or self.repo.profile.development_tests,
             self.limits.command_seconds, cancel=self.cancel, image=self.repo.profile.image)
         self.last_test = data
         evidence = test_feedback(data, self.repo.root, self.test_runs, self.state.revision, before)
+        evidence["scope"] = "partial" if selected else "all"
+        if selected:
+            evidence["targets"] = selected
         if self.digest() != before:
             self.source_changed()
             evidence.update(category="workspace_changed_during_test", hint="Source changed during testing; restart from a trusted baseline.")
@@ -250,6 +254,22 @@ class ToolEnvironment:
         self.state.phase = ("ready_to_submit" if category == "ok" and self.state.changed_files else
                             "repairing" if category in {"ok", "test_failure", "code_error"} else "blocked")
         return Observation(ok=category == "ok", category=category, data={**data, "evidence": evidence})
+
+    def select_targets(self, targets):
+        """Subset runs are feedback accelerators only; scope is recorded and submissions need a full pass."""
+        if not targets:
+            return []
+        development = self.repo.profile.development_tests
+        selected = []
+        for raw in targets:
+            file_part, _, node = raw.partition("::")
+            target = self.canonical(file_part) + (f"::{node}" if node else "")
+            if not any(file_part == d or file_part.startswith(d.rstrip("/") + "/") for d in development):
+                raise PolicyError(f"test target outside development scope: {target}; allowed roots: "
+                                  + ", ".join(development), code="test_target_outside_scope")
+            if target not in selected:
+                selected.append(target)
+        return selected
 
     def model_memory(self):
         return self.state.model_memory(self.digest())

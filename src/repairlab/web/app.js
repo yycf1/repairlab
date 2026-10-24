@@ -269,8 +269,9 @@ function appendMilestone(d) {
     body = `<p>已撤销 ${escape(d.path)} 的最近修改；此前的测试证据过期，需要重新测试。</p>`;
   } else if (d.kind === 'test_result') {
     const scope = d.baseline ? '原始代码（修改前）' : d.revision ? `第 ${d.revision} 版` : '当前版本';
+    const subset = d.scope === 'partial' ? `（部分测试：${(d.targets || []).join('、')}）` : '';
     const counts = fmtCounts(d.counts);
-    body = `<p><b>${scope}测试：${TEST_CATEGORIES[d.category] || d.category}</b>${counts ? ` · ${counts}` : ''}</p>`;
+    body = `<p><b>${scope}测试${subset}：${TEST_CATEGORIES[d.category] || d.category}</b>${counts ? ` · ${counts}` : ''}</p>`;
     if ((d.failed_nodes || []).length) body += `<pre>${escape(d.failed_nodes.slice(0, 3).join('\n'))}</pre>`;
   } else if (d.kind === 'repro') {
     body = d.first_probe
