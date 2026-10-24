@@ -40,6 +40,18 @@ class WorkflowState(BaseModel):
                 if (current.get("category") != "ok" or current.get("revision") != self.revision
                         or current.get("source_digest") != digest):
                     blockers.append(f"reproducer_not_current: rerun {candidate['id']} on this source revision")
+        elif self.submission_policy == "feedback" and not self.reproduction_confirmed:
+            # Uncovered-defect rule: baseline tests pass, so the fix must be anchored to a
+            # reproducer that failed on the original snapshot and passes on this revision.
+            confirmed = [c for c in self.candidates if c["id"].startswith("issue") and c["status"] == "confirmed"]
+            if not confirmed:
+                blockers.append("no_failing_evidence: baseline tests pass; confirm the defect with "
+                                "write_reproducer + run_reproducer before editing")
+            for candidate in confirmed:
+                current = candidate.get("latest_probe") or {}
+                if (current.get("category") != "ok" or current.get("revision") != self.revision
+                        or current.get("source_digest") != digest):
+                    blockers.append(f"reproducer_not_current: rerun {candidate['id']} on this source revision")
         if self.submission_policy == "single_shot":
             return blockers
         if not self.latest_test or self.latest_test["revision"] != self.revision or self.latest_test["source_digest"] != digest:

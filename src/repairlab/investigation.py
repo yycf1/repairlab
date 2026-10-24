@@ -48,10 +48,33 @@ class Investigation:
         self.artifacts = env.repo.root.parent / "artifacts"
 
     def candidate(self, candidate_id):
+        if self.env.state.task_kind == "repair":
+            return self.repair_candidate(candidate_id)
         for candidate in self.env.state.candidates:
             if candidate["id"] == candidate_id:
                 return candidate
         raise ValueError("Unknown candidate_id")
+
+    def repair_candidate(self, candidate_id, create=False):
+        """Repair mode derives one implicit candidate from the issue text; resolve closes it,
+        and the next write_reproducer opens a fresh numbered one."""
+        issues = [c for c in self.env.state.candidates if c["id"].startswith("issue")]
+        if candidate_id:
+            for candidate in issues:
+                if candidate["id"] == candidate_id:
+                    return candidate
+            raise ValueError("Unknown candidate_id")
+        open_candidates = [c for c in issues if c["status"] not in {"rejected", "inconclusive"}]
+        if open_candidates:
+            return open_candidates[0]
+        if not create:
+            raise ValueError("No open issue candidate; call write_reproducer first")
+        candidate = {"id": "issue" if not issues else f"issue-{len(issues) + 1}",
+                     "summary": "问题描述所指的缺陷", "expectation": "", "basis": "任务问题描述",
+                     "basis_paths": [], "paths": [], "status": "suspected", "resolution": "",
+                     "probe_history": []}
+        self.env.state.candidates = (self.env.state.candidates + [candidate])[-8:]
+        return candidate
 
     def record(self, action):
         env = self.env
@@ -81,7 +104,8 @@ class Investigation:
         return {"candidate": candidate}
 
     def write(self, action):
-        candidate = self.candidate(action.candidate_id)
+        candidate = self.repair_candidate(action.candidate_id, create=True) \
+            if self.env.state.task_kind == "repair" else self.candidate(action.candidate_id)
         if candidate["status"] in {"rejected", "inconclusive"}:
             raise ValueError("This candidate is closed")
         if candidate.get("code_sha256"):

@@ -40,12 +40,12 @@ class Action(BaseModel):
             raise ValueError("A finding requires inspected source paths and a testable hypothesis in summary")
         if self.tool == "record_candidate" and not all([self.paths, self.summary.strip(), self.expectation.strip(), self.basis.strip(), self.basis_paths]):
             raise ValueError("A candidate requires source paths, summary, expectation and a cited basis with basis_paths")
-        if self.tool in {"resolve_candidate", "write_reproducer", "run_reproducer"} and not self.candidate_id:
-            raise ValueError("candidate_id is required")
         if self.tool == "write_reproducer" and not self.code.strip():
             raise ValueError("Provide a minimal pytest test in code")
         if self.tool == "resolve_candidate" and not self.summary.strip():
             raise ValueError("Explain the evidence for rejecting or deferring the candidate")
+        if self.tool == "references" and not self.symbol.strip():
+            raise ValueError("references requires the symbol name to locate")
         if self.tool == "finish" and not self.summary.strip():
             raise ValueError("Explain why the task cannot continue in summary")
         if self.end_line < self.start_line:

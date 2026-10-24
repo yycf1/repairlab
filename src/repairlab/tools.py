@@ -89,6 +89,10 @@ class ToolEnvironment:
         if self.state.baseline_test["category"] not in {"ok", "test_failure", "code_error"}:
             raise PolicyError("baseline_unavailable: inspect the collection/environment failure, then finish if blocked",
                               code="baseline_unavailable")
+        if (self.state.task_kind == "repair" and self.state.baseline_test["category"] == "ok"
+                and not any(c["id"].startswith("issue") and c["status"] == "confirmed" for c in self.state.candidates)):
+            raise PolicyError("no_failing_evidence: baseline tests pass; confirm the defect with "
+                              "write_reproducer + run_reproducer before editing", code="no_failing_evidence")
         if name not in self.state.inspected_files:
             raise PolicyError("source_not_read: use read_file on the target source first", code="source_not_read")
         finding = self.state.hypothesis
@@ -188,6 +192,9 @@ class ToolEnvironment:
         elif tool == "run_tests":
             return self.run_tests()
         elif tool == "record_candidate":
+            if self.state.task_kind == "repair":
+                raise PolicyError("record_candidate is for inspection mode; confirm the issue defect with write_reproducer",
+                                  code="candidate_unavailable")
             data = self.investigation.record(action)
         elif tool == "resolve_candidate":
             data = self.investigation.resolve(action)
