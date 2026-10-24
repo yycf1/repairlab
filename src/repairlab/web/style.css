@@ -225,6 +225,24 @@ main {
 .event.streaming pre { border-style: dashed; color: #4f614a; min-height: 38px; }
 @keyframes stream-pulse { 50% { opacity: .3; } }
 
+.milestone { border: 1px solid #dfe7d8; border-left: 3px solid #7c9b7b; border-radius: 9px;
+  background: #fbfdf9; padding: 11px 14px; margin: 10px 0; }
+.milestone-tag { font-size: 11px; font-weight: 700; color: #35583b; background: #e9f2e6;
+  padding: 2px 9px; border-radius: 10px; letter-spacing: .5px; }
+.milestone p { font-size: 12.5px; color: #41503f; margin: 8px 0 0; line-height: 1.75; overflow-wrap: anywhere; }
+.milestone p b { font-weight: 600; color: #2f4030; }
+.milestone small { display: block; margin-top: 6px; font-size: 10.5px; color: #8b9684; }
+.milestone pre { font: 10.5px/1.6 var(--mono); background: #f2f5ee; padding: 8px 10px; border-radius: 5px;
+  margin: 8px 0 0; overflow: auto; white-space: pre-wrap; max-height: 140px; }
+.milestone details { font-size: 11px; color: #8c9785; margin-top: 6px; }
+.milestone-paths { font: 11px var(--mono); color: #6d7c64; }
+.milestone.change, .milestone.rollback { border-left-color: #b99a5a; }
+.milestone.change .milestone-tag, .milestone.rollback .milestone-tag { background: #f6efdd; color: #8a6d35; }
+.milestone.passed { border-left-color: #3c7950; background: #f4faf4; }
+.milestone.passed .milestone-tag { background: #e9f4ea; color: #3c7950; }
+.milestone.failed { border-left-color: #ba8061; background: #fdf7f3; }
+.milestone.failed .milestone-tag { background: #f8ede8; color: #a45c44; }
+
 /* ---------- 8. 工作区浏览 ---------- */
 .workspace-browser { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 14px; align-items: start; }
 .workspace-files { border: 1px solid var(--line); border-radius: 6px; max-height: 62vh; overflow: auto; background: #fcfdfb; }

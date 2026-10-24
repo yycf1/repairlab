@@ -197,6 +197,13 @@ def test_service_investigation_end_to_end_and_clean_probe_verification(settings)
         task = service.start(StartRequest(task_kind="inspect", mode="model", backend="local", allow_local=True),
                              profile=profile, background=False, model_override=ScriptedModel(investigation_actions()))
         assert task["status"] == "passed", task
+        milestones = [e["data"] for e in service.store.events(task["id"]) if e["kind"] == "milestone"]
+        kinds = [m["kind"] for m in milestones]
+        for required in ("candidate", "repro", "hypothesis", "submitted", "verdict"):
+            assert required in kinds, kinds
+        first_repro = next(m for m in milestones if m["kind"] == "repro")
+        assert first_repro["confirmed"] is True and first_repro["first_probe"] is True
+        assert milestones[-1]["kind"] == "verdict" and milestones[-1]["passed"] is True
         assert task["workflow"]["baseline_test"]["category"] == "ok"
         assert task["workflow"]["candidates"][0]["baseline_probe"]["category"] == "test_failure"
         assert task["verification"]["generated_reproducers"][0]["evidence"]["category"] == "ok"

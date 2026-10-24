@@ -102,6 +102,7 @@ class RepairAgent(DefaultAgent):
         outputs = super().execute_actions(message)
         observation = json.loads(outputs[-1]["content"])["observation"]
         self.emit("observation", {"step": self.n_calls, "tool": action["tool"], **observation})
+        self.emit_milestone(action, observation, message.get("extra", {}).get("note", ""))
         if action["tool"] == "submit" and observation["ok"]:
             self.add_messages({"role": "exit", "content": action.get("summary", ""),
                 "extra": {"exit_status": "submitted", "submission": action.get("summary", "")}})
@@ -119,9 +120,79 @@ class RepairAgent(DefaultAgent):
             if self.strategy == "single_shot":
                 self.env.state.phase = "submitted"
                 self.emit("workflow_state", self.env.state.snapshot(self.env.digest()))
+                self.emit("milestone", {"kind": "submitted", "step": self.n_calls,
+                                        "summary": "单次补丁尝试结束，交由独立验证器验收。"})
                 self.add_messages({"role": "exit", "content": "Single patch attempt completed",
                     "extra": {"exit_status": "submitted", "submission": "单次补丁尝试结束，交由独立验证器验收。"}})
         return outputs
+
+    def emit_milestone(self, action, observation, note):
+        """Narrative layer between raw steps: what the defect is, what changed, what happened.
+
+        Failed test runs and confirming reproductions arrive with ok=False; they are the
+        most informative moments, so they emit regardless of the observation verdict.
+        """
+        tool, data = action["tool"], observation.get("data") or {}
+        step = self.n_calls
+        if tool == "run_tests":
+            evidence = data.get("evidence") or {}
+            baseline = self.env.state.baseline_test is not None and \
+                evidence.get("run_id") == self.env.state.baseline_test.get("run_id")
+            self.emit("milestone", {"kind": "test_result", "step": step, "category": evidence.get("category"),
+                                    "counts": evidence.get("counts") or {},
+                                    "failed_nodes": evidence.get("failed_nodes") or [],
+                                    "revision": evidence.get("revision"), "baseline": baseline})
+            return
+        if tool == "run_reproducer":
+            candidate = self.env.investigation.candidate(data.get("candidate_id", ""))
+            evidence = data.get("evidence") or {}
+            self.emit("milestone", {"kind": "repro", "step": step, "candidate": candidate.get("id", ""),
+                                    "summary": candidate.get("summary", ""), "expectation": candidate.get("expectation", ""),
+                                    "confirmed": data.get("status") == "confirmed",
+                                    "first_probe": (candidate.get("baseline_probe") or {}).get("run_id") == evidence.get("run_id"),
+                                    "category": evidence.get("category")})
+            return
+        if not observation.get("ok"):
+            return
+        if tool == "record_finding":
+            finding = data.get("hypothesis") or {}
+            self.emit("milestone", {"kind": "hypothesis", "step": step, "summary": finding.get("summary", ""),
+                                    "paths": finding.get("paths") or [], "revision": finding.get("revision")})
+        elif tool == "edit_file" and data.get("changed"):
+            self.emit("milestone", {"kind": "change", "step": step, "path": data.get("path", ""), "note": note})
+        elif tool == "rollback_edit":
+            self.emit("milestone", {"kind": "rollback", "step": step, "path": data.get("restored", "")})
+        elif tool == "run_tests":
+            evidence = data.get("evidence") or {}
+            baseline = self.env.state.baseline_test is not None and \
+                evidence.get("run_id") == self.env.state.baseline_test.get("run_id")
+            self.emit("milestone", {"kind": "test_result", "step": step, "category": evidence.get("category"),
+                                    "counts": evidence.get("counts") or {},
+                                    "failed_nodes": evidence.get("failed_nodes") or [],
+                                    "revision": evidence.get("revision"), "baseline": baseline})
+        elif tool == "run_reproducer":
+            candidate = self.env.investigation.candidate(data.get("candidate_id", ""))
+            evidence = data.get("evidence") or {}
+            self.emit("milestone", {"kind": "repro", "step": step, "candidate": candidate.get("id", ""),
+                                    "summary": candidate.get("summary", ""), "expectation": candidate.get("expectation", ""),
+                                    "confirmed": data.get("status") == "confirmed",
+                                    "first_probe": (candidate.get("baseline_probe") or {}).get("run_id") == evidence.get("run_id"),
+                                    "category": evidence.get("category")})
+        elif tool == "record_candidate":
+            candidate = data.get("candidate") or {}
+            self.emit("milestone", {"kind": "candidate", "step": step, "candidate": candidate.get("id", ""),
+                                    "summary": candidate.get("summary", ""), "expectation": candidate.get("expectation", ""),
+                                    "basis": candidate.get("basis", ""), "paths": candidate.get("paths") or []})
+        elif tool == "resolve_candidate":
+            candidate = data.get("candidate") or {}
+            self.emit("milestone", {"kind": "finding", "step": step, "status": candidate.get("status"),
+                                    "resolution": candidate.get("resolution", "")})
+        elif tool == "submit":
+            self.emit("milestone", {"kind": "submitted", "step": step,
+                                    "summary": data.get("summary") or action.get("summary", "")})
+        elif tool == "finish":
+            self.emit("milestone", {"kind": "report", "step": step, "summary": action.get("summary", ""),
+                                    "reason": data.get("reason") or action.get("reason", "")})
 
     def handle_uncaught_exception(self, error):
         # Do not persist arbitrary provider tracebacks or credential-bearing exception reprs.

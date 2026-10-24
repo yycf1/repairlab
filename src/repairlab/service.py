@@ -273,6 +273,8 @@ class Service:
                           "blocked" if reason in {"unresolved", "no_progress"} else "error")
                 self.store.update(task_id, status=status, result=reason, blocker_reason=result.get("reason"),
                                   summary=result.get("submission", ""))
+                emit("milestone", {"kind": "verdict", "status": status, "reason": reason,
+                                   "summary": result.get("submission", "")})
                 return
             self.store.update(task_id, status="verifying")
             emit("verification_started", {"note": "在干净环境中应用补丁，最终验收结果不回灌 Agent。"})
@@ -282,6 +284,10 @@ class Service:
             self.store.update(task_id, status=status, verification=verification, summary=result.get("submission", ""),
                               patch=verification["patch"], changed_files=verification["changed_files"])
             emit("verification", verification)
+            emit("milestone", {"kind": "verdict", "status": status,
+                               "passed": True if status == "passed" else False if status == "failed" else None,
+                               "reason": verification.get("reason", ""), "summary": result.get("submission", ""),
+                               "changed_files": verification.get("changed_files") or []})
         except Exception as error:
             # Store concise error types only. Operators get no accidental provider secret dumps.
             self.store.update(task_id, status="error", error=f"任务执行失败：{type(error).__name__}")

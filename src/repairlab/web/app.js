@@ -8,6 +8,7 @@ statusNames.reviewed = '检查完成 · 未提交补丁';
 statusNames.running = 'Agent 执行中';
 const tools = { list_files: '查看文件', search: '搜索代码', read_file: '读取文件', symbols: '定位符号', edit_file: '修改源代码', run_tests: '运行开发测试', update_plan: '更新修复计划', record_finding: '记录修复假设', get_patch: '审查当前补丁', rollback_edit: '撤销最近修改', submit: '提交候选补丁', finish: '报告未解决原因' };
 Object.assign(tools, {record_candidate:'登记候选问题', resolve_candidate:'判断候选问题', write_reproducer:'构造最小复现', run_reproducer:'验证问题假设', finish:'结束并报告调查结果', update_plan:'调整行动计划'});
+const TEST_CATEGORIES = {ok:'通过', test_failure:'断言失败', code_error:'语法错误', collection_error:'收集失败', environment_error:'环境故障', timeout:'超时', cancelled:'取消', output_limit:'输出超限', workspace_changed_during_test:'测试期间代码被改动', insufficient_test_evidence:'测试证据不完整', reproducer_error:'复现测试自身错误', reproducer_no_assertion_result:'复现缺少断言结果', probe_workspace_changed:'复现期间代码被改动'};
 const escape = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(path, options = {}) {
   const response = await fetch(path, { ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });
@@ -230,10 +231,9 @@ function renderWorkflow(w) {
   $('workflow').classList.toggle('hidden', !w);
   if (!w) return;
   const phases = {inspecting:'理解仓库', investigating:'调查问题假设', reviewed:'调查结束', repairing:'分析反馈', testing:'验证当前修改', ready_to_submit:'开发测试通过 · 提交前仍需检查', submitted:'已提交候选', blocked:'检查阻塞原因'};
-  const categories = {ok:'通过', test_failure:'断言失败', code_error:'语法错误', collection_error:'收集失败', environment_error:'环境故障', timeout:'超时', cancelled:'取消', output_limit:'输出超限', workspace_changed_during_test:'测试期间代码被改动'};
-  const baseline = w.baseline_test ? (w.reproduction_confirmed ? '已观察到失败' : (w.baseline_test.category === 'ok' ? '通过，尚未复现缺陷' : categories[w.baseline_test.category])) : '尚未执行';
+  const baseline = w.baseline_test ? (w.reproduction_confirmed ? '已观察到失败' : (w.baseline_test.category === 'ok' ? '通过，尚未复现缺陷' : TEST_CATEGORIES[w.baseline_test.category])) : '尚未执行';
   const stale = (w.submission_blockers || []).some(b => b.startsWith('tests_not_current'));
-  const current = stale ? '当前版本待测试' : w.latest_test ? categories[w.latest_test.category] : '尚未执行';
+  const current = stale ? '当前版本待测试' : w.latest_test ? TEST_CATEGORIES[w.latest_test.category] : '尚未执行';
   $('workflow').innerHTML = `<div class="workflow-head"><strong>${escape(phases[w.phase] || w.phase)}</strong><span>代码版本 ${w.revision}</span></div><div class="workflow-facts"><span>原始测试：${escape(baseline)}</span><span>最近测试：${escape(current)}</span></div>${w.hypothesis ? `<p><b>修复假设 · 基于版本 ${w.hypothesis.revision}</b> ${escape(w.hypothesis.summary)}</p>` : ''}`;
 }
 function renderCandidates(w, taskId = state.selected) {
@@ -252,6 +252,51 @@ function streamBubble(step) {
     $('timeline').appendChild(el);
   }
   return el;
+}
+const MILESTONE_META = { hypothesis: ['◇', '修复假设'], change: ['✎', '代码修改'], rollback: ['↩', '撤销修改'],
+  test_result: ['⚙', '测试结果'], repro: ['⊙', '问题复现'], candidate: ['?', '候选问题'],
+  finding: ['§', '候选处置'], submitted: ['⇪', '已提交候选'], report: ['❏', '检查报告'], verdict: ['✓', '最终结果'] };
+const fmtCounts = counts => Object.entries(counts || {}).map(([k, v]) => `${v} ${k}`).join(' · ');
+function appendMilestone(d) {
+  const [icon, label] = MILESTONE_META[d.kind] || ['●', d.kind];
+  let body = '';
+  if (d.kind === 'hypothesis') {
+    body = `<p><b>${d.revision ? `第 ${d.revision} 版修复假设` : '针对原始代码的修复假设'}：</b>${escape(d.summary)}</p><p class="milestone-paths">涉及 ${escape((d.paths || []).join('、'))}</p><small>这是模型对缺陷的解释，最终以独立验收为准。</small>`;
+  } else if (d.kind === 'change') {
+    body = `<p>${escape(d.note || '应用了一处源码修改。')}</p><p class="milestone-paths">修改 ${escape(d.path)}</p>`;
+  } else if (d.kind === 'rollback') {
+    body = `<p>已撤销 ${escape(d.path)} 的最近修改；此前的测试证据过期，需要重新测试。</p>`;
+  } else if (d.kind === 'test_result') {
+    const scope = d.baseline ? '原始代码（修改前）' : d.revision ? `第 ${d.revision} 版` : '当前版本';
+    const counts = fmtCounts(d.counts);
+    body = `<p><b>${scope}测试：${TEST_CATEGORIES[d.category] || d.category}</b>${counts ? ` · ${counts}` : ''}</p>`;
+    if ((d.failed_nodes || []).length) body += `<pre>${escape(d.failed_nodes.slice(0, 3).join('\n'))}</pre>`;
+  } else if (d.kind === 'repro') {
+    body = d.first_probe
+      ? (d.confirmed
+        ? `<p><b>复现成功：</b>在原始代码上断言失败，候选 ${escape(d.candidate)} 确认为真实缺陷。</p><p>预期：${escape(d.expectation)}</p>`
+        : `<p><b>复现未成立：</b>${TEST_CATEGORIES[d.category] || d.category}（候选 ${escape(d.candidate)}），需重新检查假设。</p><p>预期：${escape(d.expectation)}</p>`)
+      : (d.category === 'ok'
+        ? `<p><b>复现通过：</b>修改后问题不再出现（候选 ${escape(d.candidate)}）。</p>`
+        : `<p><b>复现仍失败：</b>${TEST_CATEGORIES[d.category] || d.category}，本次修改未解决问题（候选 ${escape(d.candidate)}）。</p>`);
+  } else if (d.kind === 'candidate') {
+    body = `<p><b>可疑行为（候选 ${escape(d.candidate)}）：</b>${escape(d.summary)}</p><p><b>预期：</b>${escape(d.expectation)}</p><p><b>依据：</b>${escape(d.basis)}</p><p class="milestone-paths">涉及 ${escape((d.paths || []).join('、'))}</p>`;
+  } else if (d.kind === 'finding') {
+    body = d.status === 'rejected' ? `<p><b>假设已否定：</b>${escape(d.resolution)}</p>` : `<p><b>证据不足，暂不处理：</b>${escape(d.resolution)}</p>`;
+  } else if (d.kind === 'submitted') {
+    body = `<p>${escape(d.summary)}</p><p>候选补丁已提交；独立验收将在干净副本上重跑验收与回归测试。</p>`;
+  } else if (d.kind === 'report') {
+    body = `<p>${escape(d.summary)}</p>`;
+  } else if (d.kind === 'verdict') {
+    if (d.passed === true) body = `<p><b>✓ 最终结果：补丁通过独立验收，任务完成。</b></p><p>${escape(d.reason || '')}${(d.changed_files || []).length ? ` · 修改 ${escape(d.changed_files.join('、'))}` : ''}</p>`;
+    else if (d.passed === false) body = `<p><b>✗ 最终结果：补丁未通过独立验收。</b></p><p>${escape(d.reason || '')}</p>`;
+    else body = `<p><b>任务结束：${statusNames[d.status] || d.status}</b></p><p>${escape(d.reason || '')}</p>`;
+    if (d.summary) body += `<p><b>Agent 总结：</b>${escape(d.summary)}</p>`;
+  }
+  const state = d.kind === 'verdict' ? (d.passed === true ? ' passed' : d.passed === false ? ' failed' : '') : '';
+  const el = document.createElement('div'); el.className = 'milestone ' + d.kind + state;
+  el.innerHTML = `<div class="event-top"><span class="milestone-tag">${icon} ${label}</span>${d.step ? `<span>STEP ${d.step}</span>` : ''}</div>${body}<details><summary>查看数据</summary><pre>${escape(JSON.stringify(d, null, 2))}</pre></details>`;
+  $('timeline').appendChild(el);
 }
 function appendEvent(event) {
   if (state.eventIds.has(event.id)) return;
@@ -276,6 +321,7 @@ function appendEvent(event) {
     else body.textContent += d.delta;
     return;
   }
+  if (event.kind === 'milestone') { appendMilestone(d); return; }
   if (event.kind === 'action' || event.kind === 'format_error') document.getElementById('stream-' + d.step)?.remove();
   const title = event.kind === 'action' ? tools[d.action.tool] : event.kind === 'observation' ? (d.ok ? '获得执行反馈' : '发现问题，等待调整') : event.kind === 'started' ? (d.follow_up ? `第 ${d.round || 2} 轮开始` : d.resumed ? '任务续跑' : '任务开始') : ({format_error:'动作格式需修正', verification_started:'开始独立验收', verification:'验收完成', finished:'任务结束', error:'执行异常', cancel_requested:'请求停止', interrupted:'服务重启'}[event.kind] || event.kind);
   const detail = event.kind === 'action' ? d.note : event.kind === 'observation' ? (d.error || d.category) : d.detail || d.note || statusNames[d.status] || '';

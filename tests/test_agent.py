@@ -34,6 +34,15 @@ def test_real_pytest_repair_pipeline(settings, fixture, strategy, expected):
             edits = [e for e in events if e["kind"] == "action" and e["data"]["action"]["tool"] == "edit_file"]
             assert len(edits) == 2
         assert events[-1]["kind"] == "finished"
+        milestones = [e["data"] for e in events if e["kind"] == "milestone"]
+        kinds = [m["kind"] for m in milestones]
+        assert any(m["kind"] == "test_result" and m["baseline"] is True for m in milestones)
+        assert milestones[-1]["kind"] == "verdict" and milestones[-1]["passed"] is (expected == "passed")
+        for required in ("hypothesis", "change", "submitted", "test_result"):
+            assert required in kinds, (fixture, strategy, kinds)
+        if strategy == "feedback":
+            order = [kinds.index(k) for k in ("hypothesis", "change", "submitted", "verdict")]
+            assert order == sorted(order)
         assert not (settings.data_dir / "tasks" / task["id"] / "workspace" / "_acceptance").exists()
         assert (settings.data_dir / "tasks" / task["id"] / "artifacts" / "report.json").exists()
     finally:
