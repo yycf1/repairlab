@@ -378,6 +378,8 @@ function updateComposerMode(task) {
   }
   const canFollowUp = terminal.has(task.status) && task.mode === 'model';
   $('composer-send').disabled = !canFollowUp;
+  $('composer-text').placeholder = task.mode !== 'model' ? '脚本演示任务不支持追加指令。'
+    : canFollowUp ? '追加指令，Agent 在同一工作区继续…' : 'Agent 执行中，本轮结束后可继续下达指令…';
   $('composer-hint').textContent = task.mode !== 'model' ? '脚本演示任务不支持追加指令；真实模型任务可在结束后继续对话。'
     : terminal.has(task.status) ? '任务已结束，可继续下达指令，Agent 将在同一工作区开启新一轮。'
     : 'Agent 执行中，本轮结束后可继续下达指令…';

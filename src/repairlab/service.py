@@ -202,10 +202,27 @@ class Service:
         started = time.monotonic()
         model = None
         environment = None
+        usage_recorded = False
         def emit(kind, data):
             self.store.event(task_id, kind, data)
             if kind == "workflow_state":
                 self.store.update(task_id, workflow=data, plan=data["plan"])
+        def persist_usage():
+            """Usage must be committed before any terminal status; polls may read at any point."""
+            nonlocal usage_recorded
+            if model is None or usage_recorded:
+                return
+            usage_recorded = True
+            if follow_up:
+                # Round budgets are fresh by design; recorded task usage accumulates across rounds.
+                prior = self.store.get(task_id)
+                prior_tokens = prior.get("tokens") or {}
+                self.store.update(task_id,
+                    model_calls=(prior.get("model_calls") or 0) + model.model_calls,
+                    tokens={"prompt": (prior_tokens.get("prompt") or 0) + model.tokens["prompt"],
+                            "completion": (prior_tokens.get("completion") or 0) + model.tokens["completion"]})
+            else:
+                self.store.update(task_id, model_calls=model.model_calls, tokens=dict(model.tokens))
         try:
             self.store.update(task_id, status="running", resumeable=False)
             emit("started", {"mode": request.mode, "backend": runner.name, "strategy": request.strategy,
@@ -245,6 +262,7 @@ class Service:
                     result = controller.continue_run(issue, follow_up, trajectory["messages"])
                 else:
                     result = controller.resume_run(issue, checkpoint["agent"], trajectory["messages"])
+            persist_usage()
             if cancel.is_set() or result.get("exit_status") == "cancelled":
                 self.store.update(task_id, status="cancelled", result="任务已取消")
                 return
@@ -269,17 +287,7 @@ class Service:
             self.store.update(task_id, status="error", error=f"任务执行失败：{type(error).__name__}")
             emit("error", {"type": type(error).__name__})
         finally:
-            if model is not None:
-                if follow_up:
-                    # Round budgets are fresh by design; recorded task usage accumulates across rounds.
-                    prior = self.store.get(task_id)
-                    prior_tokens = prior.get("tokens") or {}
-                    self.store.update(task_id,
-                        model_calls=(prior.get("model_calls") or 0) + model.model_calls,
-                        tokens={"prompt": (prior_tokens.get("prompt") or 0) + model.tokens["prompt"],
-                                "completion": (prior_tokens.get("completion") or 0) + model.tokens["completion"]})
-                else:
-                    self.store.update(task_id, model_calls=model.model_calls, tokens=dict(model.tokens))
+            persist_usage()
             if environment is not None:
                 self.store.update(task_id, workflow=environment.state.snapshot(environment.digest()),
                                   plan=environment.plan, test_runs=environment.test_runs,

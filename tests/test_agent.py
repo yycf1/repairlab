@@ -173,11 +173,13 @@ def run_partial_task(settings, service, max_steps=5):
 
 
 def wait_for_terminal(service, task_id, timeout=60):
+    """Wait for a terminal status AND the finished event, so finally-block persistence has settled."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         task = service.store.get(task_id)
         if task["status"] in {"passed", "failed", "error", "blocked", "cancelled", "budget_exhausted", "reviewed"}:
-            return task
+            if any(e["kind"] == "finished" for e in service.store.events(task_id)):
+                return task
         time.sleep(0.1)
     return service.store.get(task_id)
 
