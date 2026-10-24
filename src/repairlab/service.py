@@ -175,7 +175,8 @@ class Service:
                 self.store.update(task_id, model_calls=model.model_calls, tokens=dict(model.tokens))
             if environment is not None:
                 self.store.update(task_id, workflow=environment.state.snapshot(environment.digest()),
-                                  plan=environment.plan, test_runs=environment.test_runs)
+                                  plan=environment.plan, test_runs=environment.test_runs,
+                                  control_stats=dict(environment.control_stats))
                 if not self.store.get(task_id).get("verification"):
                     patch, changed, violations = diff_repositories(baseline, workspace, profile)
                     if patch:

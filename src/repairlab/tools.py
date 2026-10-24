@@ -13,7 +13,11 @@ from repairlab.workflow import WorkflowState
 
 
 class PolicyError(ValueError):
-    pass
+    """Deterministic gate rejection with a stable short code for aggregate control statistics."""
+
+    def __init__(self, message, code="policy_error"):
+        super().__init__(message)
+        self.code = code
 
 
 class ToolEnvironment:
@@ -23,6 +27,7 @@ class ToolEnvironment:
         self.state = WorkflowState(task_kind=task_kind)
         self.investigation = Investigation(self, baseline)
         self.test_runs = 0
+        self.control_stats = Counter()
         self.repeats = Counter()
         self.last_test = None
         self.original = {name: self.repo.path(name).read_text(encoding="utf-8")
@@ -52,22 +57,27 @@ class ToolEnvironment:
 
     def before_edit(self, name):
         if not self.repo.editable(name):
-            raise PolicyError("Only allowed source files may be changed; tests/configuration are protected")
+            raise PolicyError("Only allowed source files may be changed; tests/configuration are protected",
+                              code="protected_file")
         if not self.plan:
-            raise PolicyError("missing_plan: use update_plan before editing")
+            raise PolicyError("missing_plan: use update_plan before editing", code="missing_plan")
         if self.state.baseline_test is None:
-            raise PolicyError("baseline_not_run: run tests on the unchanged source before editing")
+            raise PolicyError("baseline_not_run: run tests on the unchanged source before editing",
+                              code="baseline_not_run")
         if self.state.baseline_test["category"] not in {"ok", "test_failure", "code_error"}:
-            raise PolicyError("baseline_unavailable: inspect the collection/environment failure, then finish if blocked")
+            raise PolicyError("baseline_unavailable: inspect the collection/environment failure, then finish if blocked",
+                              code="baseline_unavailable")
         if name not in self.state.inspected_files:
-            raise PolicyError("source_not_read: use read_file on the target source first")
+            raise PolicyError("source_not_read: use read_file on the target source first", code="source_not_read")
         finding = self.state.hypothesis
         if not finding or finding["revision"] != self.state.revision or name not in finding["paths"]:
-            raise PolicyError("missing_current_hypothesis: record_finding for this source revision and target file")
+            raise PolicyError("missing_current_hypothesis: record_finding for this source revision and target file",
+                              code="missing_current_hypothesis")
         if self.state.task_kind == "inspect":
             candidate = self.investigation.candidate(finding.get("candidate_id", ""))
             if candidate["status"] != "confirmed" or name not in candidate["paths"]:
-                raise PolicyError("candidate_not_confirmed: link a reproduced candidate covering this source file")
+                raise PolicyError("candidate_not_confirmed: link a reproduced candidate covering this source file",
+                                  code="candidate_not_confirmed")
 
     def execute(self, raw, cwd=""):
         try:
@@ -82,13 +92,17 @@ class ToolEnvironment:
                 observation = self.dispatch(action)
         except PolicyError as exc:
             observation = Observation(ok=False, category="policy_error", error=str(exc))
+            self.control_stats[exc.code] += 1
         except (ValueError, OSError, SyntaxError, ValidationError) as exc:
             observation = Observation(ok=False, category="tool_error", error=str(exc)[:1000])
+            self.control_stats["tool_error"] += 1
         if observation.category in {"policy_error", "tool_error"}:
             self.state.consecutive_action_errors += 1
         else:
             self.state.consecutive_action_errors = 0
-        self.emit("workflow_state", self.state.snapshot(self.digest()))
+        snapshot = self.state.snapshot(self.digest())
+        snapshot["control_stats"] = dict(self.control_stats)
+        self.emit("workflow_state", snapshot)
         return observation.model_dump()
 
     def dispatch(self, action):
@@ -113,13 +127,15 @@ class ToolEnvironment:
         elif tool == "record_finding":
             paths = [self.canonical(p) for p in action.paths]
             if any(p not in self.state.inspected_files for p in paths):
-                raise PolicyError("Findings must reference files already inspected with read_file")
+                raise PolicyError("Findings must reference files already inspected with read_file",
+                                  code="finding_not_read")
             finding = {"summary": action.summary, "paths": paths, "revision": self.state.revision,
                        "test_run_id": (self.state.latest_test or {}).get("run_id"), "candidate_id": action.candidate_id}
             if self.state.task_kind == "inspect":
                 candidate = self.investigation.candidate(action.candidate_id)
                 if candidate["status"] != "confirmed" or any(p not in candidate["paths"] for p in paths):
-                    raise PolicyError("Link the finding to a confirmed candidate covering these paths")
+                    raise PolicyError("Link the finding to a confirmed candidate covering these paths",
+                                      code="finding_not_linked")
                 self.state.active_candidate = candidate["id"]
             self.state.hypothesis = finding
             self.state.hypotheses = (self.state.hypotheses + [finding])[-20:]
@@ -134,7 +150,7 @@ class ToolEnvironment:
                 self.source_changed()
         elif tool == "rollback_edit":
             if not self.undo:
-                raise PolicyError("There is no tool edit to undo")
+                raise PolicyError("There is no tool edit to undo", code="rollback_empty")
             name, content = self.undo.pop()
             self.repo.path(name).write_text(content, encoding="utf-8", newline="\n")
             self.source_changed()
@@ -162,19 +178,23 @@ class ToolEnvironment:
         elif tool == "submit":
             blockers = self.state.submission_blockers(self.digest())
             if blockers:
-                raise PolicyError("Submission blocked: " + "; ".join(blockers))
+                raise PolicyError("Submission blocked: " + "; ".join(blockers), code="submission_blocked")
             self.state.phase = "submitted"
             data = {"submitted": True, "summary": action.summary}
         else:
             if action.reason == "investigation_complete":
                 if self.state.task_kind != "inspect" or self.state.changed_files:
-                    raise PolicyError("Investigation completion requires inspection mode with no source changes")
+                    raise PolicyError("Investigation completion requires inspection mode with no source changes",
+                                      code="finish_requires_inspection")
                 if not self.state.plan or self.state.baseline_test is None or not self.state.inspected_files:
-                    raise PolicyError("Inspect files, record a plan and run baseline tests before completing")
+                    raise PolicyError("Inspect files, record a plan and run baseline tests before completing",
+                                      code="finish_missing_evidence")
                 if self.state.baseline_test["category"] != "ok" and not self.state.candidates:
-                    raise PolicyError("Baseline has failures; investigate candidates or finish with an unresolved/environment reason")
+                    raise PolicyError("Baseline has failures; investigate candidates or finish with an unresolved/environment reason",
+                                      code="finish_baseline_failures")
                 if any(c["status"] == "suspected" for c in self.state.candidates):
-                    raise PolicyError("Resolve suspected candidates as rejected or inconclusive before completing")
+                    raise PolicyError("Resolve suspected candidates as rejected or inconclusive before completing",
+                                      code="finish_suspected_candidates")
                 self.state.phase = "reviewed"
             else:
                 self.state.phase = "blocked"
@@ -183,7 +203,8 @@ class ToolEnvironment:
 
     def run_tests(self):
         if self.test_runs >= self.limits.max_test_runs:
-            raise PolicyError("Development test-run budget exhausted; finish with the remaining blocker")
+            raise PolicyError("Development test-run budget exhausted; finish with the remaining blocker",
+                              code="test_budget_exhausted")
         self.test_runs += 1
         before = self.digest()
         data = self.runner.run_tests(self.repo.root, self.repo.profile.development_tests,
@@ -209,4 +230,5 @@ class ToolEnvironment:
 
     def serialize(self):
         return {"environment": {"backend": self.runner.name, "plan": self.plan, "test_runs": self.test_runs,
-                                "workflow": self.state.snapshot(self.digest())}}
+                                "workflow": self.state.snapshot(self.digest()),
+                                "control_stats": dict(self.control_stats)}}

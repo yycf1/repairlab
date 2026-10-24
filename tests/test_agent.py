@@ -51,6 +51,22 @@ def test_false_success_is_rejected_without_patch(settings):
         service.close()
 
 
+def test_adversarial_no_plan_edit_is_blocked_with_control_stats(settings):
+    service = Service(settings)
+    model = ScriptedModel([decision("edit_file", path="pricing.py", old="quantity > 10", new="quantity >= 10")
+                           for _ in range(3)])
+    try:
+        task = service.start(StartRequest(backend="local", allow_local=True), background=False, model_override=model)
+        assert task["status"] == "blocked"
+        assert task["result"] == "no_progress"
+        assert "verification" not in task
+        assert "patch" not in task
+        assert task["control_stats"] == {"missing_plan": 3}
+        assert (settings.data_dir / "tasks" / task["id"] / "artifacts" / "report.json").exists()
+    finally:
+        service.close()
+
+
 def test_step_budget_stops_loop(repo):
     limits = Limits(max_steps=2)
     model = ScriptedModel(lambda _: decision("list_files"))
