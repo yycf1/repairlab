@@ -45,6 +45,18 @@ def test_resume_endpoint_validates_state(settings):
         assert "检查点" in response.json()["detail"]
 
 
+def test_task_list_filters_by_fixture(settings):
+    with TestClient(create_app(settings)) as client:
+        service = client.app.state.service
+        for fixture in ("boundary-discount", "csv-tags"):
+            service.start(StartRequest(fixture=fixture, backend="local", allow_local=True), background=False,
+                          model_override=ScriptedModel([{"action": {"tool": "finish", "reason": "unresolved", "summary": "x"}}]))
+        all_tasks = client.get("/api/tasks").json()
+        assert len(all_tasks) == 2
+        filtered = client.get("/api/tasks", params={"fixture": "csv-tags"}).json()
+        assert [t["fixture"] for t in filtered] == ["csv-tags"]
+
+
 def test_workspace_browser_endpoints(settings):
     with TestClient(create_app(settings)) as client:
         task = client.app.state.service.start(StartRequest(backend="local", allow_local=True, limits=Limits(max_steps=2)),

@@ -1,5 +1,6 @@
 const $ = (id) => document.getElementById(id);
-const state = { fixtures: [], config: {}, selected: null, stream: null, cursor: 0, eventIds: new Set(), editingRepository: null, directoryAuthorized: false, repositoryProtected: [] };
+const state = { fixtures: [], config: {}, workspace: null, selected: null, stream: null, cursor: 0,
+  eventIds: new Set(), editingRepository: null, directoryAuthorized: false, repositoryProtected: [] };
 const terminal = new Set(['passed', 'failed', 'error', 'cancelled', 'interrupted', 'budget_exhausted', 'blocked', 'reviewed']);
 const statusNames = { queued: '等待执行', running: '修复进行中', verifying: '独立验收中', passed: '验收通过', failed: '验收未通过', error: '执行失败', cancelled: '已停止', interrupted: '运行已中断', budget_exhausted: '预算已耗尽' };
 statusNames.blocked = '暂未解决';
@@ -14,56 +15,59 @@ async function api(path, options = {}) {
   if (!response.ok) throw new Error(typeof body.detail === 'string' ? body.detail : '请求参数无效，请检查输入。');
   return body;
 }
-function setFixture() {
-  const fixture = state.fixtures.find(f => f.id === $('fixture').value);
-  if (fixture) {
-    $('issue').value = fixture.issue; $('fixture-description').textContent = fixture.description;
-    const custom = fixture.kind === 'local';
-    $('mode').querySelector('[value="demo"]').disabled = custom;
-    if (custom) $('mode').value = 'model';
-    $('task-kind').value = custom ? 'inspect' : 'repair';
-    $('repository-tools').classList.toggle('hidden', !custom);
-    $('edit-repository').classList.toggle('hidden', !custom);
-    $('repository-source').textContent = fixture.source || '';
-    renderPreflight('repository-preflight', fixture.preflight);
-    $('allow-local').checked = false;
-    setTaskKind();
-  }
+const workspaceEntry = () => state.fixtures.find(f => f.id === state.workspace);
+
+/* ---------- 工作区（目录）与侧栏 ---------- */
+function buildWorkspaceMenu() {
+  const menu = $('workspace-menu');
+  const groups = [['builtin', '内置演示仓库'], ['local', '本地仓库']];
+  menu.innerHTML = groups.map(([kind, label]) => `<div class="ws-group">${label}</div>` +
+    state.fixtures.filter(f => f.kind === kind).map(f =>
+      `<button class="ws-option ${f.id === state.workspace ? 'selected' : ''}" data-id="${escape(f.id)}">${escape(f.name)}</button>`).join('')).join('') +
+    `<div class="ws-sep"></div><button id="register-repository" class="ws-action">＋ 接入本地仓库（选择目录）</button>` +
+    (workspaceEntry()?.kind === 'local' ? `<button id="edit-repository" class="ws-action">修改当前仓库配置</button>` : '');
+  menu.querySelectorAll('.ws-option').forEach(b => b.onclick = () => { setWorkspace(b.dataset.id); closeWorkspaceMenu(); });
+  menu.querySelector('#register-repository').onclick = () => { closeWorkspaceMenu(); openRepositoryDialog(); };
+  const edit = menu.querySelector('#edit-repository');
+  if (edit) edit.onclick = async () => { closeWorkspaceMenu(); try { openRepositoryDialog(await api(`/api/repositories/${state.workspace}`)); } catch(e) { $('form-error').textContent = e.message; } };
 }
-function setBackend() { $('local-consent').classList.toggle('hidden', $('backend').value !== 'local'); }
-function setMode() {
-  if ($('mode').value === 'demo' && $('task-kind').value === 'inspect') { $('task-kind').value = 'repair'; setTaskKind(); return; }
-  $('mode-note').innerHTML = $('mode').value === 'demo'
-    ? '<span>ⓘ</span><p>脚本演示使用预设动作检查流程，不代表大模型修复能力。</p>'
-    : '<span>ⓘ</span><p>模型自主选择工具，根据观察调整计划。生成的复现测试用于验证假设；最终补丁另行验收。</p>';
-}
-function setTaskKind() {
-  const inspect = $('task-kind').value === 'inspect';
-  if (inspect) { $('mode').value = 'model'; $('strategy').value = 'feedback'; }
-  $('strategy').disabled = inspect;
-  $('issue-label').textContent = inspect ? '检查关注点（可选）' : '问题描述';
-  $('issue').placeholder = inspect ? '可留空，或填写关注的模块、边界输入和行为约定…' : '描述预期行为、实际结果，以及复现条件…';
-  $('issue').value = inspect ? '' : (state.fixtures.find(f => f.id === $('fixture').value)?.issue || '');
-  $('task-kind-note').textContent = inspect ? 'Agent 自主调查候选问题、构造复现，只修复证据成立的问题；也可能报告未发现可确认问题。' : '根据问题描述定位、复现和修复。';
-  if (['20','32'].includes($('steps').value)) $('steps').value = inspect ? '32' : '20';
-  $('start').innerHTML = inspect ? '启动自主检查 <span>↗</span>' : '启动修复 <span>↗</span>';
-  setMode();
-}
-function renderPreflight(id, report) {
-  const el = $(id);
-  if (!report) { el.innerHTML = ''; return; }
-  const collected = report.checks.some(c => c.id === 'collection' && c.status === 'pass');
-  const label = report.ready ? (collected ? '预检及测试收集通过' : '静态预检通过 · 测试导入尚未检查') : '预检发现需要处理的问题';
-  const backend = report.backend === 'local' ? '本地 Python' : 'Docker';
-  el.innerHTML = `<div class="preflight-summary ${report.ready ? '' : 'blocked'}">${escape(label)}<div>${escape(backend)} · ${escape(new Date(report.checked_at * 1000).toLocaleString())}</div></div><details ${report.ready ? '' : 'open'}><summary>检查明细与处理建议</summary><ul>${report.checks.map(c => `<li class="${escape(c.status)}"><strong>${c.status === 'pass' ? '✓' : c.status === 'error' ? '×' : '△'} ${escape(c.label)}</strong>${escape(c.detail)}</li>`).join('')}</ul>${report.collection ? `<pre>${escape(report.collection.stdout || report.collection.stderr)}</pre>` : ''}</details>`;
+function closeWorkspaceMenu() { $('workspace-menu').classList.add('hidden'); }
+$('workspace-select').onclick = (e) => { e.stopPropagation(); $('workspace-menu').classList.toggle('hidden'); };
+document.addEventListener('click', (e) => { if (!e.target.closest('#workspace-menu')) closeWorkspaceMenu(); });
+function setWorkspace(id, { keepComposer = false } = {}) {
+  state.workspace = id;
+  localStorage.setItem('repairlab.workspace', id);
+  const entry = workspaceEntry();
+  $('workspace-name').textContent = entry?.name || id;
+  $('hero-note').textContent = entry
+    ? (entry.kind === 'local' ? `${entry.name} · 在下方描述问题或选择自主检查；也可先检查执行环境。`
+      : `当前工作区：${entry.name}${entry.description ? ' · ' + String(entry.description).slice(0, 60) : ''}`)
+    : $('hero-note').textContent;
+  const custom = entry?.kind === 'local';
+  $('mode').querySelector('[value="demo"]').disabled = custom;
+  if (custom) $('mode').value = 'model';
+  $('task-kind').value = custom ? 'inspect' : 'repair';
+  $('repository-tools').classList.toggle('hidden', !custom);
+  $('repository-source').textContent = entry?.source || '';
+  renderPreflight('repository-preflight', entry?.preflight);
+  $('allow-local').checked = false;
+  if (!keepComposer) $('composer-text').value = '';
+  setTaskKind();
+  refreshTasks().catch(() => {});
 }
 async function refreshRepositories(selected) {
   state.fixtures = await api('/api/repositories');
-  const groups = [['builtin', '内置演示仓库'], ['local', '我的本地仓库']];
-  $('fixture').innerHTML = groups.map(([kind, label]) => `<optgroup label="${label}">${state.fixtures.filter(f => f.kind === kind).map(f => `<option value="${escape(f.id)}">${escape(f.name)}</option>`).join('')}</optgroup>`).join('');
-  if (selected && state.fixtures.some(f => f.id === selected)) $('fixture').value = selected;
-  setFixture();
+  const wanted = selected || localStorage.getItem('repairlab.workspace');
+  if (state.fixtures.some(f => f.id === wanted)) setWorkspace(wanted);
+  else if (state.fixtures.length) setWorkspace(state.fixtures[0].id);
 }
+async function refreshTasks() {
+  const tasks = await api(`/api/tasks?fixture=${encodeURIComponent(state.workspace)}`);
+  $('task-list').innerHTML = tasks.length ? tasks.map(t => `<button class="task-item ${state.selected === t.id ? 'selected' : ''}" data-id="${escape(t.id)}">${escape(t.title)}<small>${escape(statusNames[t.status] || t.status)} · ${t.mode === 'demo' ? '脚本演示' : '真实模型'}${t.round > 1 ? ` · ${t.round} 轮` : ''}</small></button>`).join('') : '<p class="quiet">本工作区尚无任务。<br>在下方输入框描述问题开始第一个。</p>';
+  $('task-list').querySelectorAll('button').forEach(b => b.onclick = () => openTask(b.dataset.id));
+}
+
+/* ---------- 仓库接入对话框（沿用） ---------- */
 const splitLines = id => $(id).value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
 function registrationPayload() {
   return {profile: {name: $('repo-name').value.trim(), source: $('repo-source').value.trim(),
@@ -81,6 +85,14 @@ function registrationBusy(busy) {
   $('save-repository').disabled = busy || !state.directoryAuthorized || !splitLines('repo-editable').length || !splitLines('repo-tests').length || !splitLines('repo-regression').length;
   $('repository-dialog').dataset.busy = String(busy);
 }
+function renderPreflight(id, report) {
+  const el = $(id);
+  if (!report) { el.innerHTML = ''; return; }
+  const collected = report.checks.some(c => c.id === 'collection' && c.status === 'pass');
+  const label = report.ready ? (collected ? '预检及测试收集通过' : '静态预检通过 · 测试导入尚未检查') : '预检发现需要处理的问题';
+  const backend = report.backend === 'local' ? '本地 Python' : 'Docker';
+  el.innerHTML = `<div class="preflight-summary ${report.ready ? '' : 'blocked'}">${escape(label)}<div>${escape(backend)} · ${escape(new Date(report.checked_at * 1000).toLocaleString())}</div></div><details ${report.ready ? '' : 'open'}><summary>检查明细与处理建议</summary><ul>${report.checks.map(c => `<li class="${escape(c.status)}"><strong>${c.status === 'pass' ? '✓' : c.status === 'error' ? '×' : '△'} ${escape(c.label)}</strong>${escape(c.detail)}</li>`).join('')}</ul>${report.collection ? `<pre>${escape(report.collection.stdout || report.collection.stderr)}</pre>` : ''}</details>`;
+}
 function renderDiscovery(profile, summary) {
   $('repo-selected-path').textContent = profile.source;
   $('repository-discovery').classList.remove('hidden');
@@ -90,8 +102,8 @@ function populateRepository(profile) {
   for (const [id, key] of [['repo-name','name'],['repo-source','source'],['repo-description','description'],['repo-acceptance','acceptance'],['repo-image','image'],['repo-issue','issue']]) $(id).value = profile[key] || '';
   for (const [id, key] of [['repo-editable','editable'],['repo-tests','development_tests'],['repo-regression','regression_tests']]) $(id).value = profile[key].join('\n');
   state.repositoryProtected = profile.protected || [];
-    $('repo-required-acceptance').value = (profile.required_acceptance_tests || []).join('\n');
-    $('repo-required-regression').value = (profile.required_regression_tests || []).join('\n');
+  $('repo-required-acceptance').value = (profile.required_acceptance_tests || []).join('\n');
+  $('repo-required-regression').value = (profile.required_regression_tests || []).join('\n');
 }
 function openRepositoryDialog(entry = null) {
   $('repository-form').reset(); state.editingRepository = entry?.id || null;
@@ -103,7 +115,7 @@ function openRepositoryDialog(entry = null) {
   if (entry) {
     populateRepository(entry.profile);
     renderDiscovery(entry.profile, {source_count:entry.preflight?.editable_files?.length ?? null, test_count:entry.profile.protected?.length || null,
-      test_targets:entry.profile.development_tests, test_origin:'已保存配置', notes:[]});
+      test_targets: entry.profile.development_tests, test_origin:'已保存配置', notes:[]});
   }
   $('repo-backend').value = $('backend').value;
   $('repository-error').textContent = ''; renderPreflight('registration-preflight', null);
@@ -154,24 +166,20 @@ async function submitRegistration(save) {
   finally { registrationBusy(false); }
 }
 async function checkSelectedRepository(collect) {
-  const id = $('fixture').value;
+  const id = state.workspace;
   $('form-error').textContent = '';
   if (collect && $('backend').value === 'local' && !$('allow-local').checked) { $('form-error').textContent = '请先确认只在本机运行可信代码。'; return; }
-  ['check-repository', 'collect-repository', 'start'].forEach(key => $(key).disabled = true);
+  ['check-repository', 'collect-repository', 'composer-send'].forEach(key => $(key).disabled = true);
   try {
     const report = await api(`/api/repositories/${id}/preflight`, {method:'POST', body:JSON.stringify({backend:$('backend').value, allow_local:$('allow-local').checked, collect_tests:collect})});
-    const fixture = state.fixtures.find(f => f.id === id); if (fixture) fixture.preflight = report;
-    if ($('fixture').value === id) renderPreflight('repository-preflight', report);
+    const fixture = workspaceEntry(); if (fixture) { fixture.preflight = report; renderPreflight('repository-preflight', report); }
   } catch (e) { $('form-error').textContent = e.message; }
-  finally { ['check-repository', 'collect-repository', 'start'].forEach(key => $(key).disabled = false); }
+  finally { ['check-repository', 'collect-repository', 'composer-send'].forEach(key => $(key).disabled = false); }
 }
-async function refreshTasks() {
-  const tasks = await api('/api/tasks');
-  $('task-list').innerHTML = tasks.length ? tasks.map(t => `<button class="task-item ${state.selected === t.id ? 'selected' : ''}" data-id="${escape(t.id)}">${escape(t.title)}<small>${escape(statusNames[t.status] || t.status)} · ${t.mode === 'demo' ? '脚本演示' : '真实模型'}</small></button>`).join('') : '<p class="quiet">尚无任务</p>';
-  $('task-list').querySelectorAll('button').forEach(b => b.onclick = () => openTask(b.dataset.id));
-}
+
+/* ---------- 任务渲染 ---------- */
 function renderTask(task) {
-  $('run-title').textContent = task.title;
+  $('run-title-sm').textContent = task.title;
   $('status').textContent = statusNames[task.status] || task.status;
   $('status').className = 'status ' + task.status;
   $('run-meta').textContent = `${task.task_kind === 'inspect' ? '自主检查并修复' : '修复指定问题'} / ${task.mode === 'demo' ? '脚本演示，非真实模型' : task.model} / ${task.backend === 'local' ? '可信本地执行，无容器隔离' : 'Docker'} / ${task.strategy === 'feedback' ? '反馈迭代' : '单次补丁尝试'}`;
@@ -180,12 +188,6 @@ function renderTask(task) {
   $('metric-time').textContent = task.seconds != null ? task.seconds + 's' : '进行中';
   $('cancel').classList.toggle('hidden', terminal.has(task.status));
   $('resume').classList.toggle('hidden', !(task.status === 'interrupted' && task.resumeable));
-  const canFollowUp = terminal.has(task.status);
-  $('chat-dock').classList.toggle('hidden', task.mode !== 'model');
-  $('follow-up-text').disabled = !canFollowUp; $('send-follow-up').disabled = !canFollowUp;
-  $('follow-up-text').placeholder = canFollowUp ? '追加指令，Agent 在同一工作区继续…' : 'Agent 执行中，本轮结束后可继续下达指令…';
-  renderWorkflow(task.workflow);
-  renderCandidates(task.workflow, task.id);
   if (task.patch) {
     $('patch').innerHTML = task.patch.split('\n').map(line => `<span class="${line.startsWith('+') ? 'code-add' : line.startsWith('-') ? 'code-remove' : ''}">${escape(line)}</span>`).join('\n');
     $('download-patch').href = `/api/tasks/${task.id}/artifacts/patch`; $('download-patch').classList.remove('hidden');
@@ -211,6 +213,7 @@ function renderTask(task) {
   if (terminal.has(task.status)) {
     $('download-report').href = `/api/tasks/${task.id}/artifacts/report`; $('download-report').classList.remove('hidden');
   }
+  updateComposerMode(task);
 }
 function renderWorkflow(w) {
   $('workflow').classList.toggle('hidden', !w);
@@ -228,6 +231,8 @@ function renderCandidates(w, taskId = state.selected) {
   const labels = {suspected:'待验证', confirmed:'已复现断言不匹配', rejected:'假设已否定', inconclusive:'证据不足'};
   $('candidates').innerHTML = candidates.map(c => `<details class="candidate" ${c.status === 'confirmed' ? 'open' : ''}><summary><b>${escape(c.id)} · ${escape(labels[c.status] || c.status)}</b><span>${escape(c.summary)}</span></summary><p><b>预期：</b>${escape(c.expectation)}</p><p><b>依据：</b>${escape(c.basis)} (${escape((c.basis_paths || []).join(', '))})</p><p>涉及源码：${escape(c.paths.join(', '))}</p>${c.resolution ? `<p>处置：${escape(c.resolution)}</p>` : ''}${c.baseline_probe ? `<p>原始复现：${escape(c.baseline_probe.category)} · 最近复现：${escape(c.latest_probe.category)} / 代码版本 ${c.latest_probe.revision}</p>` : ''}${c.artifact ? `<a href="/api/tasks/${escape(taskId)}/artifacts/reproducer-${escape(c.id)}">下载复现测试 ↗</a>` : ''}<small>行为依据由模型解释，复现成功不代表独立确认了业务要求。</small></details>`).join('');
 }
+
+/* ---------- 对话事件流 ---------- */
 function streamBubble(step) {
   let el = document.getElementById('stream-' + step);
   if (!el) {
@@ -267,14 +272,10 @@ function appendEvent(event) {
   el.innerHTML = `<div class="event-top"><span class="event-title">${escape(title)}</span>${d.step ? `<span>STEP ${d.step}</span>` : ''}</div><p>${escape(detail)}</p><details><summary>查看记录</summary><pre>${escape(JSON.stringify(d, null, 2))}</pre></details>`;
   $('timeline').appendChild(el);
 }
-function showHero() {
-  if (state.stream) state.stream.close();
-  state.selected = null;
-  $('hero').classList.remove('hidden'); $('run-panel').classList.add('hidden');
-  $('new-task').classList.add('active');
-  refreshTasks().catch(() => {});
+function scrollConversationBottom() {
+  const pane = $('main-scroll');
+  pane.scrollTop = pane.scrollHeight;
 }
-$('new-task').onclick = showHero;
 async function openTask(id) {
   if (state.stream) state.stream.close();
   state.selected = id; state.cursor = 0; state.eventIds.clear();
@@ -302,6 +303,7 @@ async function openTask(id) {
     state.stream.onmessage = async (message) => {
       if (state.selected !== id) return;
       const event = JSON.parse(message.data); appendEvent(event);
+      scrollConversationBottom();
       if (['verification', 'finished', 'error'].includes(event.kind)) {
         const latest = await api(`/api/tasks/${id}`);
         if (state.selected !== id) return;
@@ -310,69 +312,21 @@ async function openTask(id) {
       }
     };
   }
-  const pane = $('tab-timeline'); pane.scrollTop = pane.scrollHeight;
+  scrollConversationBottom();
   await refreshTasks();
 }
-$('fixture').onchange = setFixture; $('backend').onchange = setBackend; $('mode').onchange = setMode;
-$('task-kind').onchange = setTaskKind;
-$('register-repository').onclick = () => openRepositoryDialog();
-$('edit-repository').onclick = async () => {
-  try { openRepositoryDialog(await api(`/api/repositories/${$('fixture').value}`)); }
-  catch(e) { $('form-error').textContent = e.message; }
-};
-$('close-repository').onclick = () => $('repository-dialog').close();
-$('repository-dialog').oncancel = e => { if ($('repository-dialog').dataset.busy === 'true') e.preventDefault(); };
-$('choose-repository-directory').onclick = () => discoverDirectory(true);
-$('discover-repository-path').onclick = () => discoverDirectory(false);
-$('repository-form').oninput = e => {
-  renderPreflight('registration-preflight', null);
-  if (e.target.id === 'repo-source') {
-    state.directoryAuthorized = false; $('repository-discovery').classList.add('hidden');
-    $('repo-selected-path').textContent = '目录已变更，请点击“读取并识别”。';
-  }
-  registrationBusy(false);
-};
-$('inspect-registration').onclick = () => submitRegistration(false);
-$('repository-form').onsubmit = e => { e.preventDefault(); submitRegistration(true); };
-$('check-repository').onclick = () => checkSelectedRepository(false);
-$('collect-repository').onclick = () => checkSelectedRepository(true);
-$('refresh').onclick = () => refreshTasks().catch(e => $('form-error').textContent = e.message);
-$('cancel').onclick = async () => { if (state.selected) await api(`/api/tasks/${state.selected}/cancel`, { method:'POST' }); };
-$('resume').onclick = async () => {
-  if (!state.selected) return;
-  $('resume').disabled = true;
-  try {
-    const task = await api(`/api/tasks/${state.selected}/resume`, { method: 'POST' });
-    await openTask(task.id); await refreshTasks();
-  } catch (e) { $('form-error').textContent = e.message; }
-  finally { $('resume').disabled = false; }
-};
-$('send-follow-up').onclick = async () => {
-  const text = $('follow-up-text').value.trim();
-  $('follow-up-error').textContent = '';
-  if (!text || !state.selected) return;
-  $('send-follow-up').disabled = true;
-  try {
-    const task = await api(`/api/tasks/${state.selected}/follow-up`, { method: 'POST', body: JSON.stringify({ text }) });
-    $('follow-up-text').value = '';
-    await openTask(task.id); await refreshTasks();
-  } catch (e) { $('follow-up-error').textContent = e.message; }
-  finally { $('send-follow-up').disabled = false; }
-};
-$('start').onclick = async () => {
-  $('form-error').textContent = '';
-  if ($('backend').value === 'local' && !$('allow-local').checked) { $('form-error').textContent = '请先确认只在本机运行可信代码。'; return; }
-  if ($('mode').value === 'model' && !state.config.model_configured) { $('form-error').textContent = '尚未配置真实模型，请按 README 配置项目2独立的 .env 后重启。'; return; }
-  $('start').disabled = true;
-  try {
-    const task = await api('/api/tasks', { method:'POST', body:JSON.stringify({ fixture:$('fixture').value,
-      issue:$('issue').value, task_kind:$('task-kind').value, mode:$('mode').value, backend:$('backend').value, strategy:$('strategy').value,
-      allow_local:$('allow-local').checked, limits:{ max_steps:Number($('steps').value), command_seconds:Number($('timeout').value),
-        max_tokens:$('task-kind').value === 'inspect' ? 60000 : 30000, max_seconds:$('task-kind').value === 'inspect' ? 600 : 300 } }) });
-    await openTask(task.id);
-  } catch(e) { $('form-error').textContent = e.message; }
-  finally { $('start').disabled = false; }
-};
+function showHero() {
+  if (state.stream) state.stream.close();
+  state.selected = null;
+  $('hero').classList.remove('hidden'); $('run-panel').classList.add('hidden');
+  $('new-task').classList.add('active');
+  updateComposerMode(null);
+  $('composer-text').focus();
+  refreshTasks().catch(() => {});
+}
+$('new-task').onclick = showHero;
+
+/* ---------- 工作区文件浏览 ---------- */
 let workspaceLoadedFor = null;
 async function loadWorkspaceFiles(taskId) {
   if (workspaceLoadedFor === taskId) return;
@@ -397,6 +351,111 @@ document.querySelectorAll('.tab').forEach(button => button.onclick = () => {
   document.querySelectorAll('.tab-content').forEach(el => el.classList.toggle('hidden', el.id !== 'tab-' + button.dataset.tab));
   if (button.dataset.tab === 'workspace' && state.selected) loadWorkspaceFiles(state.selected);
 });
+
+/* ---------- 底部输入框：新建任务 / 追加指令 ---------- */
+function setBackend() { $('local-consent').classList.toggle('hidden', $('backend').value !== 'local'); }
+function setMode() {
+  if ($('mode').value === 'demo' && $('task-kind').value === 'inspect') { $('task-kind').value = 'repair'; setTaskKind(); return; }
+}
+function setTaskKind() {
+  const inspect = $('task-kind').value === 'inspect';
+  if (inspect) { $('mode').value = 'model'; $('strategy').value = 'feedback'; }
+  $('strategy').disabled = inspect;
+  $('composer-text').placeholder = inspect ? '可留空（全面自主检查），或填写关注的模块、边界输入和行为约定…' : '描述要修复的问题：预期行为、实际结果、复现条件…';
+  if (['20','32'].includes($('steps').value)) $('steps').value = inspect ? '32' : '20';
+}
+function updateComposerMode(task) {
+  // task === null → composing a new task; otherwise follow-up mode bound to the task's state.
+  $('composer-settings').classList.toggle('hidden', task !== null);
+  if (!task) {
+    $('composer-send').disabled = false;
+    $('composer-send').title = '发送（Enter 发送，Shift+Enter 换行）';
+    $('composer-hint').textContent = 'Enter 发送 · Shift+Enter 换行';
+    $('composer-text').placeholder = $('task-kind').value === 'inspect'
+      ? '可留空（全面自主检查），或填写关注的模块、边界输入和行为约定…'
+      : '描述要修复的问题：预期行为、实际结果、复现条件…';
+    return;
+  }
+  const canFollowUp = terminal.has(task.status) && task.mode === 'model';
+  $('composer-send').disabled = !canFollowUp;
+  $('composer-hint').textContent = task.mode !== 'model' ? '脚本演示任务不支持追加指令；真实模型任务可在结束后继续对话。'
+    : terminal.has(task.status) ? '任务已结束，可继续下达指令，Agent 将在同一工作区开启新一轮。'
+    : 'Agent 执行中，本轮结束后可继续下达指令…';
+}
+function autoGrow() {
+  const box = $('composer-text');
+  box.style.height = 'auto';
+  box.style.height = Math.min(box.scrollHeight, 180) + 'px';
+}
+$('composer-text').addEventListener('input', autoGrow);
+$('composer-text').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('composer-send').click(); }
+});
+async function sendComposer() {
+  const text = $('composer-text').value.trim();
+  $('form-error').textContent = '';
+  if (state.selected) {
+    if (!text) return;
+    $('composer-send').disabled = true;
+    try {
+      const task = await api(`/api/tasks/${state.selected}/follow-up`, { method: 'POST', body: JSON.stringify({ text }) });
+      $('composer-text').value = ''; autoGrow();
+      await openTask(task.id); await refreshTasks();
+    } catch (e) { $('form-error').textContent = e.message; }
+    finally { updateComposerMode(await api(`/api/tasks/${state.selected}`).catch(() => null)); }
+    return;
+  }
+  if (!text && $('task-kind').value !== 'inspect') { $('form-error').textContent = '请描述要修复的问题；或切换为自主检查模式。'; return; }
+  if ($('backend').value === 'local' && !$('allow-local').checked) { $('form-error').textContent = '请先确认只在本机运行可信代码。'; return; }
+  if ($('mode').value === 'model' && !state.config.model_configured) { $('form-error').textContent = '尚未配置真实模型，请点击右上角配置后重试。'; return; }
+  $('composer-send').disabled = true;
+  try {
+    const task = await api('/api/tasks', { method: 'POST', body: JSON.stringify({
+      fixture: state.workspace, issue: text, task_kind: $('task-kind').value, mode: $('mode').value,
+      backend: $('backend').value, strategy: $('strategy').value, allow_local: $('allow-local').checked,
+      limits: { max_steps: Number($('steps').value), command_seconds: Number($('timeout').value),
+        max_tokens: $('task-kind').value === 'inspect' ? 60000 : 30000,
+        max_seconds: $('task-kind').value === 'inspect' ? 600 : 300 } }) });
+    $('composer-text').value = ''; autoGrow();
+    await openTask(task.id); await refreshTasks();
+  } catch (e) { $('form-error').textContent = e.message; }
+  finally { $('composer-send').disabled = false; }
+}
+$('composer-send').onclick = () => sendComposer().catch(e => $('form-error').textContent = e.message);
+
+/* ---------- 其余控件 ---------- */
+$('close-repository').onclick = () => $('repository-dialog').close();
+$('repository-dialog').oncancel = e => { if ($('repository-dialog').dataset.busy === 'true') e.preventDefault(); };
+$('choose-repository-directory').onclick = () => discoverDirectory(true);
+$('discover-repository-path').onclick = () => discoverDirectory(false);
+$('repository-form').oninput = e => {
+  renderPreflight('registration-preflight', null);
+  if (e.target.id === 'repo-source') {
+    state.directoryAuthorized = false; $('repository-discovery').classList.add('hidden');
+    $('repo-selected-path').textContent = '目录已变更，请点击“读取并识别”。';
+  }
+  registrationBusy(false);
+};
+$('inspect-registration').onclick = () => submitRegistration(false);
+$('repository-form').onsubmit = e => { e.preventDefault(); submitRegistration(true); };
+$('check-repository').onclick = () => checkSelectedRepository(false);
+$('collect-repository').onclick = () => checkSelectedRepository(true);
+$('refresh').onclick = () => refreshTasks().catch(e => $('form-error').textContent = e.message);
+$('cancel').onclick = async () => { if (state.selected) await api(`/api/tasks/${state.selected}/cancel`, { method: 'POST' }); };
+$('resume').onclick = async () => {
+  if (!state.selected) return;
+  $('resume').disabled = true;
+  try {
+    const task = await api(`/api/tasks/${state.selected}/resume`, { method: 'POST' });
+    await openTask(task.id); await refreshTasks();
+  } catch (e) { $('form-error').textContent = e.message; }
+  finally { $('resume').disabled = false; }
+};
+$('task-kind').onchange = setTaskKind;
+$('mode').onchange = setMode;
+$('backend').onchange = setBackend;
+
+/* ---------- 模型设置 ---------- */
 async function renderModelStatus() {
   state.config = await api('/api/config');
   $('model-status').textContent = state.config.model_configured ? '● ' + (state.config.model || '已配置') : '○ 真实模型待配置 · 点击设置';
@@ -454,9 +513,13 @@ $('model-settings-form').onsubmit = async e => {
     $('model-settings-dialog').close(); await renderModelStatus();
   } catch (e2) { $('model-settings-error').textContent = e2.message; }
 };
+
+/* ---------- 启动 ---------- */
 async function init() {
   await renderModelStatus();
   if (!state.config.docker_installed) $('backend').value = 'local';
   await refreshRepositories(); setBackend(); await refreshTasks();
+  updateComposerMode(null);
+  $('new-task').classList.add('active');
 }
 init().catch(e => $('form-error').textContent = e.message);

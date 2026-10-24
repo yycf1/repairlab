@@ -151,8 +151,11 @@ def create_app(settings=None):
             raise HTTPException(400, str(exc)) from None
 
     @app.get("/api/tasks")
-    def tasks():
-        return service().store.list()
+    def tasks(fixture: str | None = None):
+        items = service().store.list()
+        if fixture:
+            items = [task for task in items if task.get("fixture") == fixture]
+        return items
 
     @app.post("/api/tasks", status_code=201)
     def start(request: StartRequest):
