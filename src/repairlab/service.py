@@ -3,6 +3,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
+import shutil
 import threading
 import time
 import uuid
@@ -21,6 +22,7 @@ from repairlab.verification import Verifier
 from repairlab.workflow import WorkflowState
 
 TERMINAL = {"passed", "failed", "error", "cancelled", "interrupted", "budget_exhausted", "blocked", "reviewed"}
+BUILTIN_FIXTURES = {"boundary-discount", "csv-tags", "pagination", "investigation"}
 
 
 class Service:
@@ -164,6 +166,72 @@ class Service:
 
     def run(self, task_id, request, profile, demo_config, issue, runner, cancel, model_override):
         self._execute(task_id, request, profile, demo_config, issue, runner, cancel, model_override)
+
+    def apply_patch(self, task_id, *, confirm=False):
+        """Copy verified workspace changes onto the original repository (user-confirmed, undoable)."""
+        task = self.store.get(task_id)
+        if task is None:
+            raise ValueError("任务不存在。")
+        if task["status"] != "passed" or not task.get("patch"):
+            raise ValueError("只有验收通过且有补丁的任务可以应用。")
+        if task.get("fixture") in BUILTIN_FIXTURES:
+            raise ValueError("内置演示仓库不支持应用补丁；接入本地仓库后创建任务再使用。")
+        if task.get("applied"):
+            raise ValueError("补丁已应用；如需回退请先撤销应用。")
+        profile = RepoProfile.model_validate(task["repository_profile"])
+        source = Path(profile.source)
+        if not source.is_dir():
+            raise ValueError("原始仓库目录不存在或已移动。")
+        repository = Repository(source, profile)
+        workspace = self.settings.data_dir / "tasks" / task_id / "workspace"
+        plan = []
+        for name in task.get("changed_files") or []:
+            repository.path(name)  # rejects any path escaping the source repository
+            plan.append({"path": name, "delete": not (workspace / name).is_file()})
+        if not plan:
+            raise ValueError("补丁没有可应用的文件变更。")
+        if not confirm:
+            return {"preview": True, "source": str(source), "changed_files": [item["path"] for item in plan],
+                    "deletions": [item["path"] for item in plan if item["delete"]]}
+        backup_dir = self.settings.data_dir / "tasks" / task_id / "apply-backup"
+        applied = []
+        for item in plan:
+            target = repository.path(item["path"])
+            backup = backup_dir / item["path"]
+            if target.is_file():
+                backup.parent.mkdir(parents=True, exist_ok=True)
+                if not backup.exists():
+                    shutil.copyfile(target, backup)
+            if (workspace / item["path"]).is_file():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(workspace / item["path"], target)
+            elif target.exists():
+                target.unlink()  # patch deletion: removed after the original is backed up
+            applied.append(item["path"])
+        self.store.update(task_id, applied=True, applied_at=round(time.time(), 3))
+        self.store.event(task_id, "patch_applied", {"source": str(source), "applied": applied})
+        return {"applied": applied, "source": str(source)}
+
+    def undo_apply(self, task_id):
+        task = self.store.get(task_id)
+        if task is None or not task.get("applied"):
+            raise ValueError("该任务没有可撤销的补丁应用。")
+        profile = RepoProfile.model_validate(task["repository_profile"])
+        repository = Repository(Path(profile.source), profile)
+        backup_dir = self.settings.data_dir / "tasks" / task_id / "apply-backup"
+        restored = []
+        for name in task.get("changed_files") or []:
+            target = repository.path(name)
+            backup = backup_dir / name
+            if backup.is_file():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(backup, target)
+            elif target.exists():
+                target.unlink()  # file was created by the patch; removing restores the original state
+            restored.append(name)
+        self.store.update(task_id, applied=False, applied_undone=True)
+        self.store.event(task_id, "patch_undone", {"restored": restored})
+        return {"restored": restored}
 
     def resume(self, task_id, *, model_override=None):
         """Continue an interrupted task from its checkpoint after validating the execution scene."""

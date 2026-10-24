@@ -140,3 +140,8 @@ class ModelSettingsUpdate(BaseModel):
 class FollowUpRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     text: str = Field(min_length=1, max_length=6000)
+
+
+class ApplyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    confirm: bool = False

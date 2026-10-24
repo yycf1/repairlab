@@ -219,7 +219,11 @@ function renderTask(task) {
       }
     }
     for (const probe of v.generated_reproducers || []) html += `<div class="verification-case"><strong>复现 ${escape(probe.id)} · 生成测试，非独立验收依据</strong><small>${probe.evidence.category === 'ok' ? 'PASS' : 'FAIL'}</small><pre>${escape(probe.result.stdout || probe.result.stderr)}</pre></div>`;
+    if (task.status === 'passed' && task.patch && !BUILTIN_FIXTURES.has(task.fixture)) {
+      html += `<div class="apply-controls"><button id="apply-patch" class="secondary">应用到原始仓库 ↗</button><button id="undo-apply" class="secondary hidden">撤销应用 ↩</button><span id="apply-note" class="apply-note"></span></div>`;
+    }
     $('verification').innerHTML = html;
+    bindApplyControls(task);
   } else if (task.error || (terminal.has(task.status) && task.status !== 'passed')) {
     $('verification').textContent = task.error || task.summary || task.result || statusNames[task.status];
   }
@@ -237,8 +241,48 @@ function renderWorkflow(w) {
   const current = stale ? '当前版本待测试' : w.latest_test ? TEST_CATEGORIES[w.latest_test.category] : '尚未执行';
   $('workflow').innerHTML = `<div class="workflow-head"><strong>${escape(phases[w.phase] || w.phase)}</strong><span>代码版本 ${w.revision}</span></div><div class="workflow-facts"><span>原始测试：${escape(baseline)}</span><span>最近测试：${escape(current)}</span></div>${w.hypothesis ? `<p><b>修复假设 · 基于版本 ${w.hypothesis.revision}</b> ${escape(w.hypothesis.summary)}</p>` : ''}`;
 }
-function renderCandidates(w, taskId = state.selected) {
-  const candidates = w?.candidates || [];
+const BUILTIN_FIXTURES = new Set(['boundary-discount', 'csv-tags', 'pagination', 'investigation']);
+function bindApplyControls(task) {
+  const applyBtn = document.getElementById('apply-patch');
+  if (!applyBtn) return;
+  const note = document.getElementById('apply-note');
+  const undoBtn = document.getElementById('undo-apply');
+  if (task.applied) {
+    applyBtn.disabled = true; applyBtn.textContent = '补丁已应用';
+    undoBtn.classList.remove('hidden');
+    note.textContent = '补丁已应用到原始仓库，可撤销恢复原文件。';
+  }
+  applyBtn.onclick = async () => {
+    if (applyBtn.dataset.armed !== '1') {
+      applyBtn.dataset.armed = '1';
+      applyBtn.textContent = '确认覆盖原始仓库文件？再次点击执行';
+      applyBtn.classList.add('danger');
+      return;
+    }
+    applyBtn.disabled = true;
+    try {
+      const result = await api(`/api/tasks/${task.id}/apply`, { method: 'POST', body: JSON.stringify({ confirm: true }) });
+      note.textContent = `已应用 ${result.applied.length} 个文件到 ${result.source}；可撤销恢复原文件。`;
+      applyBtn.textContent = '补丁已应用';
+      undoBtn.classList.remove('hidden');
+      await refreshTasks().catch(() => {});
+    } catch (e) {
+      note.textContent = e.message;
+      applyBtn.disabled = false;
+    }
+  };
+  undoBtn.onclick = async () => {
+    undoBtn.disabled = true;
+    try {
+      const result = await api(`/api/tasks/${task.id}/apply/undo`, { method: 'POST', body: '{}' });
+      note.textContent = `已撤销：恢复 ${result.restored.length} 个原始文件。`;
+      applyBtn.disabled = false; applyBtn.textContent = '应用到原始仓库 ↗'; applyBtn.dataset.armed = '';
+      applyBtn.classList.remove('danger');
+      undoBtn.classList.add('hidden');
+    } catch (e) { note.textContent = e.message; }
+  };
+}
+function renderCandidates(w, taskId = state.selected) {  const candidates = w?.candidates || [];
   $('candidates').classList.toggle('hidden', !candidates.length);
   const labels = {suspected:'待验证', confirmed:'已复现断言不匹配', rejected:'假设已否定', inconclusive:'证据不足'};
   $('candidates').innerHTML = candidates.map(c => `<details class="candidate" ${c.status === 'confirmed' ? 'open' : ''}><summary><b>${escape(c.id)} · ${escape(labels[c.status] || c.status)}</b><span>${escape(c.summary)}</span></summary><p><b>预期：</b>${escape(c.expectation)}</p><p><b>依据：</b>${escape(c.basis)} (${escape((c.basis_paths || []).join(', '))})</p><p>涉及源码：${escape(c.paths.join(', '))}</p>${c.resolution ? `<p>处置：${escape(c.resolution)}</p>` : ''}${c.baseline_probe ? `<p>原始复现：${escape(c.baseline_probe.category)} · 最近复现：${escape(c.latest_probe.category)} / 代码版本 ${c.latest_probe.revision}</p>` : ''}${c.artifact ? `<a href="/api/tasks/${escape(taskId)}/artifacts/reproducer-${escape(c.id)}">下载复现测试 ↗</a>` : ''}<small>行为依据由模型解释，复现成功不代表独立确认了业务要求。</small></details>`).join('');

@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from repairlab.models import (DirectoryDiscovery, DirectoryPick, FollowUpRequest, ModelSettingsUpdate,
+from repairlab.models import (ApplyRequest, DirectoryDiscovery, DirectoryPick, FollowUpRequest, ModelSettingsUpdate,
                               RepoProfile, RepositoryCheck, RepositoryRegistration, StartRequest)
 from repairlab.directory_picker import choose_directory
 from repairlab.discovery import discover_repository
@@ -211,6 +211,22 @@ def create_app(settings=None):
         try:
             return workspace_repository(task).read(path, 1, 400)
         except (ValueError, OSError) as exc:
+            raise HTTPException(400, str(exc)) from None
+
+    @app.post("/api/tasks/{task_id}/apply")
+    def apply_patch(task_id: str, request: ApplyRequest):
+        task_or_404(task_id)
+        try:
+            return service().apply_patch(task_id, confirm=request.confirm)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
+
+    @app.post("/api/tasks/{task_id}/apply/undo")
+    def undo_apply_patch(task_id: str):
+        task_or_404(task_id)
+        try:
+            return service().undo_apply(task_id)
+        except ValueError as exc:
             raise HTTPException(400, str(exc)) from None
 
     @app.get("/api/tasks/{task_id}/events")
