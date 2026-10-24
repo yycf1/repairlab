@@ -67,6 +67,21 @@ def test_connection_reports_status_without_echoing_body():
     assert not result["ok"] and result["latency_ms"] is None
 
 
+def test_connection_accepts_reasoning_output_and_flags_truly_empty():
+    def thinking(_):
+        return httpx.Response(200, json={"choices": [{"message": {"role": "assistant", "content": "",
+                                     "reasoning_content": "思考过程"}, "finish_reason": "length"}]})
+    with httpx.Client(transport=httpx.MockTransport(thinking)) as client:
+        result = check_connection("https://api.invalid/v1", "test-key-never-public", "thinker", client=client)
+    assert result["ok"] and "思考型" in result["message"]
+
+    def empty(_):
+        return httpx.Response(200, json={"choices": [{"message": {"role": "assistant", "content": ""}}]})
+    with httpx.Client(transport=httpx.MockTransport(empty)) as client:
+        result = check_connection("https://api.invalid/v1", "test-key-never-public", "quiet", client=client)
+    assert not result["ok"] and "choices" in result["message"]
+
+
 def test_settings_api_lifecycle(settings, isolated_env):
     with TestClient(create_app(settings)) as client:
         assert client.get("/api/settings/model").json()["configured"] is False

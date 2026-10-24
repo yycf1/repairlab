@@ -119,7 +119,7 @@ def test_connection(base_url, api_key, model, *, client=None, timeout=12):
     try:
         response = client.post(url, headers={"Authorization": "Bearer " + api_key},
             json={"model": model, "messages": [{"role": "user", "content": "连接测试，请只回复：ok"}],
-                  "temperature": 0, "max_tokens": 8})
+                  "temperature": 0, "max_tokens": 512})
     except httpx.HTTPError:
         return {"ok": False, "message": "无法连接接口；请检查网络、地址与代理设置。", "latency_ms": None}
     finally:
@@ -128,10 +128,14 @@ def test_connection(base_url, api_key, model, *, client=None, timeout=12):
     latency = round((time.monotonic() - started) * 1000)
     if response.status_code == 200:
         body = response.json()
-        if not (body.get("choices") or [{}])[0].get("message", {}).get("content"):
-            return {"ok": False, "message": "接口可达，但响应缺少 choices/message 内容；请确认是 Chat Completions 接口。",
-                    "latency_ms": latency}
-        return {"ok": True, "message": f"连接成功，模型 {model} 已响应。", "latency_ms": latency}
+        message = (body.get("choices") or [{}])[0].get("message", {})
+        # Thinking models may spend the whole completion budget on reasoning_content.
+        if message.get("content"):
+            return {"ok": True, "message": f"连接成功，模型 {model} 已响应。", "latency_ms": latency}
+        if message.get("reasoning_content"):
+            return {"ok": True, "message": f"连接成功，模型 {model} 已响应（思考型输出）。", "latency_ms": latency}
+        return {"ok": False, "message": "接口可达，但响应缺少 choices/message 内容；请确认是 Chat Completions 接口。",
+                "latency_ms": latency}
     reasons = {401: "密钥无效或未授权（HTTP 401）。", 403: "密钥无权访问该模型（HTTP 403）。",
                404: "接口地址或模型名不存在（HTTP 404）。", 429: "触发限流（HTTP 429）；连接本身有效，可稍后重试。"}
     return {"ok": False, "message": reasons.get(response.status_code,
