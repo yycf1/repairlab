@@ -1,0 +1,23 @@
+{
+  "name": "提款最低保留额",
+  "description": "现有测试全部通过，缺陷未被覆盖：按问题描述补上提款后余额不得低于 10 元的保留规则，需先构造复现确认。",
+  "source": "repo",
+  "editable": ["quota.py"],
+  "development_tests": ["tests"],
+  "regression_tests": ["tests"],
+  "issue": "提现规则要求账户余额不得低于 10 元的最低保留额，但当前 can_withdraw 只校验不超过余额，把余额提到底线以下也返回允许。现有测试全部通过，请先构造复现确认缺陷，再修复判断逻辑，并保持原有行为不变。",
+  "required_acceptance_tests": [
+    "_acceptance/test_acceptance.py::test_min_balance_rule[100-95-False]",
+    "_acceptance/test_acceptance.py::test_min_balance_rule[100-90-True]",
+    "_acceptance/test_acceptance.py::test_min_balance_rule[15-5-True]",
+    "_acceptance/test_acceptance.py::test_min_balance_rule[15-6-False]",
+    "_acceptance/test_acceptance.py::test_min_balance_rule[50-80-False]",
+    "_acceptance/test_acceptance.py::test_min_balance_rule[50-30-True]",
+    "_acceptance/test_acceptance.py::test_non_positive_still_rejected"
+  ],
+  "required_regression_tests": [
+    "tests/test_quota.py::test_rejects_non_positive",
+    "tests/test_quota.py::test_rejects_over_balance",
+    "tests/test_quota.py::test_allows_normal_withdrawal"
+  ]
+}

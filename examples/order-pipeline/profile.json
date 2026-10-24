@@ -1,0 +1,18 @@
+{
+  "name": "下单与库存流水线",
+  "description": "跨两个文件的缺陷：库存扣减缺少不足校验，下单流程未校验数量且不处理扣减失败，需要同时修复两处。",
+  "source": "repo",
+  "editable": ["stock.py", "order.py"],
+  "development_tests": ["tests"],
+  "regression_tests": ["tests"],
+  "issue": "下单流水线有两个互相配合的规则：reserve 在库存不足时应拒绝扣减并保持库存不变（返回 None）；place_order 必须拒绝非正数量，并在库存不足时返回 False 而不是 True。现有测试只暴露了 reserve 的问题，place_order 的规则靠验收把关，请让两条流程都符合约定。",
+  "required_acceptance_tests": [
+    "_acceptance/test_acceptance.py::test_place_order_rejects_non_positive",
+    "_acceptance/test_acceptance.py::test_place_order_rejects_insufficient",
+    "_acceptance/test_acceptance.py::test_place_order_success",
+    "_acceptance/test_acceptance.py::test_reserve_rejects_insufficient"
+  ],
+  "required_regression_tests": [
+    "tests/test_stock.py::test_reserve_reduces_stock"
+  ]
+}

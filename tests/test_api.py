@@ -8,7 +8,9 @@ def test_api_history_sse_and_artifacts(settings):
     with TestClient(create_app(settings)) as client:
         assert client.get("/").status_code == 200
         assert client.get("/static/app.js").status_code == 200
-        assert len(client.get("/api/fixtures").json()) == 3
+        fixtures = client.get("/api/fixtures").json()
+        assert any(f["id"] == "boundary-discount" and f["demo"] for f in fixtures)
+        assert any(f["id"] == "quota-guard" and not f["demo"] for f in fixtures)
         assert client.post("/api/tasks", json={"mode": "model", "backend": "local", "allow_local": True}).status_code == 400
         assert client.post("/api/tasks", json={"backend": "local"}).status_code == 400
         assert client.post("/api/tasks", json={"fixture": "../../private"}).status_code == 422

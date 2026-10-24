@@ -49,7 +49,7 @@ def test_registration_persists_and_can_be_updated(repo, settings):
     service = Service(settings)
     try:
         assert service.profile(entry["id"])[0].source == str(repo.root.resolve())
-        assert len(service.repositories()) == 4
+        assert len(service.repositories()) == len(service.fixtures()) + 1
         request = registration(repo)
         request.profile = repo.profile.model_copy(update={"name": "新的仓库名称"})
         updated = service.register(request, entry["id"])
@@ -124,8 +124,8 @@ def test_api_registration_requires_explicit_directory_authorization_and_same_ori
         saved = client.post("/api/repositories", json=body, headers={"Origin": "http://testserver"})
         assert saved.status_code == 201
         repository_id = saved.json()["id"]
-        assert len(client.get("/api/repositories").json()) == 4
-        assert len(client.get("/api/fixtures").json()) == 3
+        assert len(client.get("/api/repositories").json()) == len(client.get("/api/fixtures").json()) + 1
+        assert any(f["id"] == "quota-guard" and not f["demo"] for f in client.get("/api/fixtures").json())
         body["profile"]["name"] = "更新名称"
         assert client.put(f"/api/repositories/{repository_id}", json=body).json()["profile"]["name"] == "更新名称"
         assert client.get(f"/api/repositories/{repository_id}").status_code == 200

@@ -56,8 +56,9 @@ function setWorkspace(id, { keepComposer = false } = {}) {
       : `当前工作区：${entry.name}${entry.description ? ' · ' + String(entry.description).slice(0, 60) : ''}`)
     : $('hero-note').textContent;
   const custom = entry?.kind === 'local';
-  $('mode').querySelector('[value="demo"]').disabled = custom;
-  if (custom) $('mode').value = 'model';
+  const noDemo = custom || entry?.demo === false;
+  $('mode').querySelector('[value="demo"]').disabled = noDemo;
+  if (noDemo) $('mode').value = 'model';
   $('task-kind').value = custom ? 'inspect' : 'repair';
   $('repository-tools').classList.toggle('hidden', !custom);
   $('repository-source').textContent = entry?.source || '';

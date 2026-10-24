@@ -43,7 +43,7 @@ class Service:
         for path in sorted((self.settings.root / "examples").glob("*/profile.json")):
             data = json.loads(path.read_text(encoding="utf-8"))
             result.append({"id": path.parent.name, "name": data["name"], "description": data["description"],
-                           "issue": data["issue"], "demo": True})
+                           "issue": data["issue"], "demo": "demo_config" in data})
         return result
 
     def profile(self, fixture):
@@ -56,7 +56,7 @@ class Service:
             raise ValueError("Unknown registered repository")
         base = self.settings.root / "examples" / fixture
         data = json.loads((base / "profile.json").read_text(encoding="utf-8"))
-        demo_config = data.pop("demo_config")
+        demo_config = data.pop("demo_config", None)
         data.update(source=str(base / "repo"), acceptance=str(base / "acceptance"), demo=True)
         return RepoProfile.model_validate(data), demo_config
 
@@ -109,7 +109,7 @@ class Service:
         if request.mode == "model" and not self.settings.model_ready and model_override is None:
             raise ValueError("项目2尚未配置大模型；可先运行明确标注的脚本演示。")
         if request.mode == "demo" and demo_config is None and model_override is None:
-            raise ValueError("Scripted demos are available only for bundled fixtures")
+            raise ValueError("该仓库未提供脚本演示路径；请使用真实模型运行。")
         runner = make_runner(request.backend, request.allow_local)
         task_id = uuid.uuid4().hex[:16]
         issue = (request.issue.strip() or "自主检查此仓库：依据项目约定、源码和测试发现可复现的问题；仅修复证据成立的问题，并报告检查范围和未覆盖部分。") if request.task_kind == "inspect" else (request.issue.strip() or profile.issue)
