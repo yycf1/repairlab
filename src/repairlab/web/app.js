@@ -338,10 +338,65 @@ document.querySelectorAll('.tab').forEach(button => button.onclick = () => {
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('selected', b === button));
   document.querySelectorAll('.tab-content').forEach(el => el.classList.toggle('hidden', el.id !== 'tab-' + button.dataset.tab));
 });
-async function init() {
+async function renderModelStatus() {
   state.config = await api('/api/config');
-  $('model-status').textContent = state.config.model_configured ? '● ' + state.config.model : '○ 真实模型待配置';
+  $('model-status').textContent = state.config.model_configured ? '● ' + (state.config.model || '已配置') : '○ 真实模型待配置 · 点击设置';
   $('model-status').classList.toggle('ready', state.config.model_configured);
+}
+const providerById = id => (state.providers || []).find(p => p.id === id);
+function syncProviderFields(fill) {
+  const p = providerById($('model-provider').value) || providerById('custom');
+  if (fill && p) {
+    if (p.base_url) $('model-base-url').value = p.base_url;
+    if (p.models && p.models.length) $('model-name').value = p.models[0];
+  }
+  $('model-suggestions').innerHTML = (p?.models || []).map(m => `<option value="${escape(m)}">`).join('');
+  $('provider-note').innerHTML = p ? `${p.key_url ? `<a href="${escape(p.key_url)}" target="_blank" rel="noreferrer">获取 API Key ↗</a>` : ''}${p.models?.length ? `<span>常见模型：${escape(p.models.join(' / '))}</span>` : ''}${p.note ? `<span>${escape(p.note)}</span>` : ''}` : '';
+}
+function renderTestResult(result) {
+  const el = $('model-test-result');
+  if (!result) { el.innerHTML = ''; return; }
+  if (result.pending) { el.innerHTML = '<div class="preflight-summary">正在发送测试请求…</div>'; return; }
+  el.innerHTML = `<div class="preflight-summary ${result.ok ? '' : 'blocked'}">${result.ok ? '✓' : '×'} ${escape(result.message)}${result.latency_ms != null ? `<div>${result.latency_ms} ms</div>` : ''}</div>`;
+}
+async function openModelSettings() {
+  $('model-settings-error').textContent = ''; renderTestResult(null);
+  const [config, providers] = await Promise.all([api('/api/settings/model'), api('/api/settings/providers')]);
+  state.providers = providers;
+  $('model-provider').innerHTML = providers.map(p => `<option value="${escape(p.id)}">${escape(p.name)}</option>`).join('');
+  $('model-base-url').value = config.base_url || ''; $('model-name').value = config.model || '';
+  $('model-api-key').value = ''; $('model-api-key').type = 'password'; $('toggle-key').textContent = '显示';
+  $('model-api-key').placeholder = config.api_key_masked ? `已配置（${config.api_key_masked}），留空沿用` : 'sk-…';
+  $('model-provider').value = providers.some(p => p.id === config.provider) ? config.provider : 'custom';
+  syncProviderFields(false);
+  $('model-settings-dialog').showModal();
+}
+$('model-status').onclick = () => openModelSettings().catch(e => $('form-error').textContent = e.message);
+$('close-model-settings').onclick = () => $('model-settings-dialog').close();
+$('model-provider').onchange = () => syncProviderFields(true);
+$('toggle-key').onclick = () => {
+  const input = $('model-api-key');
+  input.type = input.type === 'password' ? 'text' : 'password';
+  $('toggle-key').textContent = input.type === 'password' ? '显示' : '隐藏';
+};
+$('test-model').onclick = async () => {
+  $('model-settings-error').textContent = ''; renderTestResult({pending: true}); $('test-model').disabled = true;
+  try {
+    renderTestResult(await api('/api/settings/model/test', {method:'POST', body: JSON.stringify({
+      base_url: $('model-base-url').value.trim(), model: $('model-name').value.trim(), api_key: $('model-api-key').value})}));
+  } catch (e) { renderTestResult({ok: false, message: e.message}); }
+  finally { $('test-model').disabled = false; }
+};
+$('model-settings-form').onsubmit = async e => {
+  e.preventDefault(); $('model-settings-error').textContent = '';
+  try {
+    await api('/api/settings/model', {method: 'PUT', body: JSON.stringify({
+      base_url: $('model-base-url').value.trim(), model: $('model-name').value.trim(), api_key: $('model-api-key').value})});
+    $('model-settings-dialog').close(); await renderModelStatus();
+  } catch (e2) { $('model-settings-error').textContent = e2.message; }
+};
+async function init() {
+  await renderModelStatus();
   if (!state.config.docker_installed) $('backend').value = 'local';
   await refreshRepositories(); setBackend(); await refreshTasks();
 }

@@ -79,6 +79,24 @@
       <div class="dialog-actions"><button id="inspect-registration" type="button" class="secondary" disabled>重新检查</button><button id="save-repository" type="submit" class="primary" disabled>接入仓库 ↗</button></div>
     </form>
   </dialog>
+  <dialog id="model-settings-dialog" aria-labelledby="model-settings-title">
+    <div class="dialog-heading"><h2 id="model-settings-title">模型配置</h2><button id="close-model-settings" class="text-button" aria-label="关闭模型配置">关闭 ×</button></div>
+    <p class="dialog-intro">选择厂商预设并填写 API Key 即可。密钥只保存在本机 .env（已被 Git 忽略），不会上传，也不会出现在任务报告里。</p>
+    <form id="model-settings-form">
+      <fieldset id="model-settings-fields">
+        <label for="model-provider">厂商预设</label><select id="model-provider"></select>
+        <p id="provider-note" class="field-note" aria-live="polite"></p>
+        <label for="model-base-url">接口地址</label><input id="model-base-url" placeholder="https://api.example.com/v1" autocomplete="off" spellcheck="false">
+        <label for="model-name">模型名称</label><input id="model-name" list="model-suggestions" placeholder="按账号可用模型填写" autocomplete="off" spellcheck="false"><datalist id="model-suggestions"></datalist>
+        <label for="model-api-key">API Key</label>
+        <div class="manual-directory"><input id="model-api-key" type="password" placeholder="sk-…" autocomplete="off" spellcheck="false"><button id="toggle-key" type="button" class="secondary">显示</button></div>
+        <p class="field-note">已保存过密钥时可留空，保存将沿用原值。「测试连接」发送一条最小请求，不会保存任何内容。</p>
+        <div id="model-test-result" class="preflight" aria-live="polite"></div>
+        <p id="model-settings-error" class="error-message" role="alert"></p>
+      </fieldset>
+      <div class="dialog-actions"><button id="test-model" type="button" class="secondary">测试连接</button><button type="submit" class="primary">保存配置 ↗</button></div>
+    </form>
+  </dialog>
   <script src="/static/app.js"></script>
 </body>
 </html>

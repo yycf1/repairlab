@@ -10,9 +10,10 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from repairlab.models import DirectoryDiscovery, DirectoryPick, RepositoryCheck, RepositoryRegistration, StartRequest
+from repairlab.models import DirectoryDiscovery, DirectoryPick, ModelSettingsUpdate, RepositoryCheck, RepositoryRegistration, StartRequest
 from repairlab.directory_picker import choose_directory
 from repairlab.discovery import discover_repository
+from repairlab.model_config import PROVIDERS, apply_to_process, public_model_settings, test_connection, write_env_config
 from repairlab.service import Service, TERMINAL
 from repairlab.settings import Settings
 
@@ -57,6 +58,32 @@ def create_app(settings=None):
     @app.get("/api/config")
     def config():
         return settings.public()
+
+    @app.get("/api/settings/model")
+    def model_settings():
+        return public_model_settings(settings)
+
+    @app.get("/api/settings/providers")
+    def model_providers():
+        return PROVIDERS
+
+    @app.put("/api/settings/model")
+    def save_model_settings(request: ModelSettingsUpdate):
+        base_url = request.base_url.strip().rstrip("/")
+        if not base_url.startswith(("https://", "http://")):
+            raise HTTPException(400, "接口地址必须以 http(s):// 开头。")
+        stored = settings.api_key
+        values = write_env_config(settings.env_path, model=request.model.strip(), base_url=base_url,
+                                  api_key=request.api_key.strip() or stored)
+        apply_to_process(values)
+        return public_model_settings(settings)
+
+    @app.post("/api/settings/model/test")
+    def test_model_settings(request: ModelSettingsUpdate):
+        api_key = request.api_key.strip() or settings.api_key
+        if not api_key:
+            raise HTTPException(400, "请先填写 API Key，或保存过已有配置。")
+        return test_connection(request.base_url, api_key, request.model.strip())
 
     @app.get("/api/fixtures")
     def fixtures():

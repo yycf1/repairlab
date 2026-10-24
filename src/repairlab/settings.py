@@ -18,6 +18,10 @@ class Settings:
         return Path(os.getenv("REPAIRLAB_DATA_DIR", str(self.root / ".data"))).resolve()
 
     @property
+    def env_path(self):
+        return Path(os.getenv("REPAIRLAB_ENV_PATH", str(self.root / ".env")))
+
+    @property
     def model(self):
         return os.getenv("REPAIRLAB_MODEL", "").strip()
 

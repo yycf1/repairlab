@@ -126,3 +126,10 @@ class Observation(BaseModel):
     category: str = "ok"
     data: dict = Field(default_factory=dict)
     error: str = ""
+
+
+class ModelSettingsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    model: str = Field(min_length=1, max_length=120)
+    base_url: str = Field(min_length=1, max_length=300)
+    api_key: str = Field(default="", max_length=300)

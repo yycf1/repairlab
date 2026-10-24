@@ -46,7 +46,9 @@ uv run python scripts/evaluate_offline.py --backend local --allow-local --output
 
 ## 独立模型配置
 
-复制 `.env.example` 为本项目 `.env`，填写后重启服务，选择“真实模型”：
+最简单的方式：打开工作台 <http://127.0.0.1:8766/>，点击右上角的模型状态标签，选择厂商预设（DeepSeek、SiliconFlow、智谱、百炼、Kimi、OpenAI 或自定义兼容接口），填写 API Key，测试连接后保存。配置写入本机 `.env` 并即时生效，无需重启服务；密钥在页面与报告中只显示掩码。
+
+也可以手动复制 `.env.example` 为本项目 `.env`，填写后重启服务，选择“真实模型”：
 
 ```dotenv
 REPAIRLAB_MODEL=你的模型名称

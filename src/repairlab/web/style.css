@@ -17,3 +17,11 @@
 .event.streaming:before { background: #c2d3b6; animation: stream-pulse 1s infinite; }
 .event.streaming pre { border-style: dashed; color: #4f614a; min-height: 38px; }
 @keyframes stream-pulse { 50% { opacity: .3; } }
+
+#model-status { cursor: pointer; }
+#model-status:hover { border-color: #7c9b7b; color: var(--green); }
+#provider-note { min-height: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
+#provider-note a { color: var(--green); }
+#provider-note span { color: var(--muted); }
+#model-api-key { font-family: var(--mono); }
+#model-settings-fields .manual-directory { margin-top: 0; }
