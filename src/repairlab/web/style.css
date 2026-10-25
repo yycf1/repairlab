@@ -378,11 +378,6 @@ body.launch .composer-pill, body.launch #composer-hint, body.launch #form-error 
 .text-button:disabled { opacity: .5; cursor: not-allowed; }
 #composer-plus-menu #repository-preflight { margin: 12px 0 0; }
 #composer-plus-menu #repository-preflight details { max-height: 34vh; }
-.plus-action {
-  display: block; width: 100%; text-align: left; color: var(--green); font-size: 12px;
-  padding: 11px 2px 0; margin-top: 12px; border-top: 1px solid var(--line);
-}
-.plus-action:hover { text-decoration: underline; }
 
 /* ---------- 11. 表单元素基线 ---------- */
 select, input, textarea {

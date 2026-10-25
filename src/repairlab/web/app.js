@@ -57,6 +57,8 @@ function setWorkspace(id, { keepComposer = false } = {}) {
     : $('hero-note').textContent;
   const custom = entry?.kind === 'local';
   $('repository-tools').classList.toggle('hidden', !custom);
+  // ＋ 只承载对话相关功能；内置演示仓库没有可放的项，直接隐藏按钮避免空菜单。
+  $('composer-plus').classList.toggle('hidden', !custom);
   $('repository-source').textContent = entry?.source || '';
   renderPreflight('repository-preflight', entry?.preflight);
   $('allow-local').checked = false;
@@ -599,7 +601,6 @@ $('composer-plus').onclick = (e) => {
   $('composer-plus-menu').classList.contains('hidden') ? openPlusMenu() : closePlusMenu();
 };
 document.addEventListener('click', (e) => { if (!e.target.closest('#composer-plus-menu')) closePlusMenu(); });
-$('open-plus-settings').onclick = () => { closePlusMenu(); openModelSettings().catch(err => $('form-error').textContent = err.message); };
 $('preset-repair').onclick = () => setRunMode('repair');
 $('preset-inspect').onclick = () => setRunMode('inspect');
 $('allow-local').onchange = setBackend;
