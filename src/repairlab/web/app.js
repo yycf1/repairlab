@@ -56,10 +56,8 @@ function setWorkspace(id, { keepComposer = false } = {}) {
       : `当前工作区：${entry.name}${entry.description ? ' · ' + String(entry.description).slice(0, 60) : ''}`)
     : $('hero-note').textContent;
   const custom = entry?.kind === 'local';
-  $('repository-tools').classList.toggle('hidden', !custom);
-  // ＋ 只承载对话相关功能；内置演示仓库没有可放的项，直接隐藏按钮避免空菜单。
-  $('composer-plus').classList.toggle('hidden', !custom);
-  $('repository-source').textContent = entry?.source || '';
+  // ＋ 只列功能；检查环境/收集测试仅对自定义本地仓库开放
+  document.querySelectorAll('#composer-plus-menu .custom-only').forEach(el => el.classList.toggle('hidden', !custom));
   renderPreflight('repository-preflight', entry?.preflight);
   $('allow-local').checked = false;
   if (!keepComposer) $('composer-text').value = '';
@@ -184,6 +182,7 @@ async function checkSelectedRepository(collect) {
   try {
     const report = await api(`/api/repositories/${id}/preflight`, {method:'POST', body:JSON.stringify({backend:$('backend').value, allow_local:$('allow-local').checked, collect_tests:collect})});
     const fixture = workspaceEntry(); if (fixture) { fixture.preflight = report; renderPreflight('repository-preflight', report); }
+    if (state.selected) appendPreflightEvent(report);
   } catch (e) { $('form-error').textContent = e.message; }
   finally { ['check-repository', 'collect-repository', 'composer-send'].forEach(key => $(key).disabled = false); }
 }
@@ -485,6 +484,7 @@ function updateComposerMode(task) {
   // task === null → composing a new task; otherwise follow-up mode bound to the task's state.
   document.body.classList.toggle('launch', task === null);
   $('composer-launch').classList.toggle('hidden', task !== null);
+  $('plus-reference-file').classList.toggle('hidden', task === null);
   closePlusMenu();
   if (!task) {
     $('composer-send').disabled = false;
@@ -560,8 +560,29 @@ $('repository-form').oninput = e => {
 };
 $('inspect-registration').onclick = () => submitRegistration(false);
 $('repository-form').onsubmit = e => { e.preventDefault(); submitRegistration(true); };
-$('check-repository').onclick = () => checkSelectedRepository(false);
-$('collect-repository').onclick = () => checkSelectedRepository(true);
+$('check-repository').onclick = () => { closePlusMenu(); checkSelectedRepository(false).catch(e => $('form-error').textContent = e.message); };
+$('collect-repository').onclick = () => { closePlusMenu(); checkSelectedRepository(true).catch(e => $('form-error').textContent = e.message); };
+$('plus-add-file').onclick = () => $('plus-file-input').click();
+$('plus-reference-file').onclick = () => openReferenceList().catch(e => $('form-error').textContent = e.message);
+$('plus-file-input').addEventListener('change', async (e) => {
+  const files = Array.from(e.target.files || []);
+  e.target.value = '';
+  closePlusMenu();
+  if (!files.length) return;
+  const box = $('composer-text');
+  const parts = [];
+  for (const file of files) {
+    if (file.size > 64 * 1024) { $('form-error').textContent = `${file.name} 超过 64KB，无法作为文本附件添加。`; continue; }
+    try {
+      const text = await file.text();
+      parts.push(`【附件 ${file.name}】\n\`\`\`\n${text.trim()}\n\`\`\``);
+    } catch { $('form-error').textContent = `${file.name} 不是可读取的文本文件。`; }
+  }
+  if (parts.length) {
+    box.value = (box.value.trimEnd() ? box.value.trimEnd() + '\n\n' : '') + parts.join('\n\n');
+    autoGrow(); box.focus();
+  }
+});
 $('refresh').onclick = () => refreshTasks().catch(e => $('form-error').textContent = e.message);
 $('cancel').onclick = async () => { if (state.selected) await api(`/api/tasks/${state.selected}/cancel`, { method: 'POST' }); };
 $('resume').onclick = async () => {
@@ -578,6 +599,7 @@ function closePlusMenu() { $('composer-plus-menu').classList.add('hidden'); }
 function openPlusMenu() {
   const menu = $('composer-plus-menu');
   if (menu.classList.contains('hidden')) {
+    showPlusMain();
     const rect = $('composer-plus').getBoundingClientRect();
     // 高度按加号上方的可用空间钳制，菜单再长也只在自身内部滚动，不会顶出屏幕
     const available = rect.top - 70;
@@ -586,6 +608,43 @@ function openPlusMenu() {
     menu.style.maxHeight = Math.max(200, available - 10) + 'px';
     menu.classList.remove('hidden');
   }
+}
+function showPlusMain() {
+  $('plus-main').classList.remove('hidden');
+  const list = $('plus-ref-list');
+  list.classList.add('hidden');
+  list.innerHTML = '';
+}
+function appendPreflightEvent(report) {
+  const timeline = $('timeline');
+  if (!timeline) return;
+  const card = document.createElement('div');
+  card.className = 'event preflight-event';
+  const title = report.ready ? '✓ 环境检查通过' : '× 环境检查发现问题';
+  card.innerHTML = `<div class="event-top"><span class="event-title">${escape(title)}</span></div><div class="preflight"><ul>${report.checks.map(c =>
+    `<li class="${escape(c.status)}"><strong>${escape(c.label)}</strong>${escape(c.detail)}</li>`).join('')}</ul></div>`;
+  timeline.appendChild(card);
+  card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+async function openReferenceList() {
+  if (!state.selected) return;
+  const list = $('plus-ref-list');
+  $('plus-main').classList.add('hidden');
+  list.innerHTML = '<p class="model-empty">加载工作区文件…</p>';
+  list.classList.remove('hidden');
+  try {
+    const data = await api(`/api/tasks/${state.selected}/workspace/files`);
+    const rows = (data.files || []).map(f =>
+      `<button type="button" class="plus-item" data-path="${escape(f.path || f)}"><span class="plus-ico">📄</span><span class="plus-label-text">${escape(f.path || f)}</span></button>`).join('');
+    list.innerHTML = '<button type="button" class="plus-item" id="plus-back"><span class="plus-ico">‹</span><span class="plus-label-text">返回</span></button>' +
+      (rows || '<p class="model-empty">工作区还没有可引用的文本文件。</p>');
+    list.querySelectorAll('[data-path]').forEach(b => b.onclick = () => {
+      const box = $('composer-text');
+      box.value = (box.value ? box.value.replace(/\s*$/, '') + ' ' : '') + '@' + b.dataset.path;
+      autoGrow(); box.focus(); closePlusMenu(); showPlusMain();
+    });
+    list.querySelector('#plus-back').onclick = showPlusMain;
+  } catch (err) { $('form-error').textContent = err.message; showPlusMain(); }
 }
 function pulseConsent() {
   const c = $('local-consent');

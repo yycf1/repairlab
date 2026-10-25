@@ -41,6 +41,7 @@
         <h1>随时可以开始。</h1>
         <p id="hero-note">在下方输入框描述问题；Agent 将在当前工作区的独立副本中调查、修复并交付可验证补丁。</p>
       </div>
+      <div id="repository-preflight" class="preflight" aria-live="polite"></div>
     </section>
     <section id="run-panel" class="run-panel hidden">
       <div id="run-content">
@@ -67,11 +68,14 @@
       <div class="composer-tools">
         <button type="button" id="composer-plus" class="round-tool" title="检查工具与预检结果" aria-haspopup="true">＋</button>
         <div id="composer-plus-menu" class="plus-menu hidden">
-          <div id="repository-tools" class="plus-repo hidden">
-            <span class="ws-repo-name" id="repository-source"></span>
-            <div class="plus-repo-actions"><button id="check-repository" class="text-button">检查环境</button><button id="collect-repository" class="text-button">收集测试</button></div>
+          <div id="plus-main">
+            <button type="button" class="plus-item" id="plus-add-file"><span class="plus-ico">📎</span><span class="plus-label-text">添加文件</span><span class="plus-chev">›</span></button>
+            <button type="button" class="plus-item task-only hidden" id="plus-reference-file"><span class="plus-ico">＠</span><span class="plus-label-text">引用对话中的文件</span><span class="plus-chev">›</span></button>
+            <button type="button" class="plus-item custom-only hidden" id="check-repository"><span class="plus-ico">🔍</span><span class="plus-label-text">检查环境</span><span class="plus-chev">›</span></button>
+            <button type="button" class="plus-item custom-only hidden" id="collect-repository"><span class="plus-ico">🧪</span><span class="plus-label-text">收集测试</span><span class="plus-chev">›</span></button>
           </div>
-          <div id="repository-preflight" class="preflight" aria-live="polite"></div>
+          <div id="plus-ref-list" class="hidden"></div>
+          <input type="file" id="plus-file-input" class="hidden" multiple>
         </div>
       </div>
       <textarea id="composer-text" rows="1" placeholder="描述要修复的问题：预期行为、实际结果、复现条件。"></textarea>

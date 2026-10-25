@@ -393,15 +393,20 @@ body.launch .composer-pill, body.launch #composer-hint, body.launch #form-error 
   padding: 6px 10px; border-radius: 5px; line-height: 1.5;
 }
 .consent input { width: 14px; min-width: 14px; margin: 0; flex-shrink: 0; }
-.plus-repo { margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--line); }
-.plus-repo.hidden { display: none; }
-.plus-repo-actions { display: flex; gap: 14px; margin-top: 3px; }
-.ws-repo-name { display: block; font: 10px var(--mono); color: var(--muted); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plus-item {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  padding: 9px 10px; border-radius: 7px; font-size: 12px; color: #354036;
+}
+.plus-item:hover { background: #f2f6ee; }
+.plus-item:disabled { opacity: .5; cursor: not-allowed; }
+.plus-ico { width: 18px; text-align: center; flex-shrink: 0; }
+.plus-label-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plus-chev { color: #b3bfb0; }
+#repository-preflight { max-width: 720px; margin: 26px auto 0; text-align: left; }
+#repository-preflight details { max-height: 34vh; overflow-y: auto; overscroll-behavior: contain; }
 .text-button { color: var(--green); font-size: 11px; padding: 4px 0; text-align: left; }
 .text-button:hover { text-decoration: underline; }
 .text-button:disabled { opacity: .5; cursor: not-allowed; }
-#composer-plus-menu #repository-preflight { margin: 12px 0 0; }
-#composer-plus-menu #repository-preflight details { max-height: 34vh; }
 
 /* ---------- 11. 表单元素基线 ---------- */
 select, input, textarea {
