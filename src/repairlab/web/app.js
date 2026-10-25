@@ -419,6 +419,7 @@ async function openTask(id) {
   $('candidates').classList.add('hidden');
   const task = await api(`/api/tasks/${id}`);
   if (state.selected !== id) return;
+  state.task = task;
   renderTask(task);
   workspaceLoadedFor = null; $('workspace-files').innerHTML = ''; $('workspace-content').textContent = '选择左侧文件查看只读内容。';
   $('workspace-file-head').classList.add('hidden');
@@ -450,6 +451,7 @@ async function openTask(id) {
 function showHero() {
   if (state.stream) state.stream.close();
   state.selected = null;
+  state.task = null;
   $('hero').classList.remove('hidden'); $('run-panel').classList.add('hidden');
   $('new-task').classList.add('active');
   updateComposerMode(null);
@@ -463,6 +465,11 @@ let workspaceLoadedFor = null;
 async function loadWorkspaceFiles(taskId) {
   if (workspaceLoadedFor === taskId) return;
   const box = $('workspace-files');
+  if (state.task?.task_kind === 'check') {
+    box.innerHTML = `<p class="quiet ws-note">${CHECK_SESSION_NOTE}</p>`;
+    workspaceLoadedFor = taskId;
+    return;
+  }
   box.innerHTML = '<p class="quiet ws-note">加载中…</p>';
   try {
     const data = await api(`/api/tasks/${taskId}/workspace/files`);
@@ -497,6 +504,9 @@ document.querySelectorAll('.tab').forEach(button => button.onclick = () => {
   document.querySelectorAll('.tab-content').forEach(el => el.classList.toggle('hidden', el.id !== 'tab-' + button.dataset.tab));
   if (button.dataset.tab === 'workspace' && state.selected) loadWorkspaceFiles(state.selected);
 });
+
+/* 检查会话没有工作区副本（不复制仓库、不运行 Agent），工作区页签给出说明而非报错。 */
+const CHECK_SESSION_NOTE = '这是一次环境检查会话，只记录检查结果，没有任务工作区副本。';
 
 /* ---------- 底部输入框：新建任务 / 追加指令 ---------- */
 function setBackend() {
