@@ -21,7 +21,7 @@ from repairlab.tools import ToolEnvironment, source_digest
 from repairlab.verification import Verifier
 from repairlab.workflow import WorkflowState
 
-TERMINAL = {"passed", "failed", "error", "cancelled", "interrupted", "budget_exhausted", "blocked", "reviewed"}
+TERMINAL = {"passed", "failed", "error", "cancelled", "interrupted", "budget_exhausted", "blocked", "reviewed", "checked"}
 BUILTIN_FIXTURES = {"boundary-discount", "csv-tags", "pagination", "investigation"}
 
 
@@ -128,6 +128,26 @@ class Service:
             self.run(*args)
         return self.store.get(task_id)
 
+    def create_check_session(self, fixture, backend, collect, report):
+        """Persist a manual environment check / test collection as a reviewable session.
+
+        The session is a lightweight task record: no agent run, no workspace copy,
+        only the report stored as a conversation event so history stays browsable.
+        """
+        profile, _ = self.profile(fixture)
+        checks = report.get("checks") if isinstance(report, dict) else None
+        if not isinstance(checks, list) or not checks or len(checks) > 50:
+            raise ValueError("预检报告格式不正确。")
+        task_id = uuid.uuid4().hex[:16]
+        self.store.create(task_id, {"title": profile.name, "issue": "收集测试" if collect else "检查环境",
+            "mode": "check", "backend": backend, "strategy": "feedback", "task_kind": "check",
+            "fixture": fixture, "tokens": {"prompt": 0, "completion": 0},
+            "allow_local": backend == "local", "resumeable": False, "round": 1})
+        self.store.update(task_id, status="checked")
+        self.store.event(task_id, "preflight", {"collect": collect, "backend": backend,
+            "ready": bool(report.get("ready")), "checked_at": report.get("checked_at"), "checks": checks})
+        return self.store.get(task_id)
+
     def follow_up(self, task_id, text, *, model_override=None):
         """Continue a finished task in the same workspace with a new user instruction.
 
@@ -138,6 +158,8 @@ class Service:
         text = (text or "").strip()
         if task is None or task["status"] not in TERMINAL:
             raise ValueError("任务不存在或尚未结束，无法追加指令。")
+        if task.get("task_kind") == "check":
+            raise ValueError("环境检查会话只记录结果，不支持追加指令。")
         if task.get("mode") != "model":
             raise ValueError("脚本演示使用固定脚本，不支持追加指令；请创建真实模型任务。")
         if not text:

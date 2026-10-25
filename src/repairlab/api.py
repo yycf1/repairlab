@@ -10,9 +10,9 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from repairlab.models import (ApplyRequest, DirectoryDiscovery, DirectoryPick, FollowUpRequest, ModelSettingsUpdate,
-                              ProfileActivateRequest, RepoProfile, RepositoryCheck, RepositoryRegistration,
-                              StartRequest)
+from repairlab.models import (ApplyRequest, CheckSessionRequest, DirectoryDiscovery, DirectoryPick, FollowUpRequest,
+                              ModelSettingsUpdate, ProfileActivateRequest, RepoProfile, RepositoryCheck,
+                              RepositoryRegistration, StartRequest)
 from repairlab.directory_picker import choose_directory
 from repairlab.discovery import discover_repository
 from repairlab.model_config import (API_KEY_KEY, PROVIDERS, activate_profile, apply_to_process,
@@ -103,6 +103,13 @@ def create_app(settings=None):
             return activate_profile(settings, request.id)
         except ValueError as error:
             raise HTTPException(404, str(error))
+
+    @app.post("/api/check-sessions")
+    def create_check_session(request: CheckSessionRequest):
+        try:
+            return service().create_check_session(request.fixture, request.backend, request.collect, request.report)
+        except ValueError as error:
+            raise HTTPException(400, str(error))
 
     @app.post("/api/settings/model/test")
     def test_model_settings(request: ModelSettingsUpdate):

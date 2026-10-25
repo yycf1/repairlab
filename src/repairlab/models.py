@@ -142,6 +142,14 @@ class ProfileActivateRequest(BaseModel):
     id: str = Field(min_length=1, max_length=64)
 
 
+class CheckSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    fixture: str = Field(min_length=1, max_length=120)
+    backend: Literal["docker", "local"]
+    collect: bool = False
+    report: dict
+
+
 class FollowUpRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     text: str = Field(min_length=1, max_length=6000)

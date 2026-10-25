@@ -1,11 +1,12 @@
 const $ = (id) => document.getElementById(id);
 const state = { fixtures: [], config: {}, workspace: null, selected: null, stream: null, cursor: 0,
   eventIds: new Set(), editingRepository: null, directoryAuthorized: false, repositoryProtected: [], runMode: 'repair' };
-const terminal = new Set(['passed', 'failed', 'error', 'cancelled', 'interrupted', 'budget_exhausted', 'blocked', 'reviewed']);
+const terminal = new Set(['passed', 'failed', 'error', 'cancelled', 'interrupted', 'budget_exhausted', 'blocked', 'reviewed', 'checked']);
 const statusNames = { queued: '等待执行', running: '修复进行中', verifying: '独立验收中', passed: '验收通过', failed: '验收未通过', error: '执行失败', cancelled: '已停止', interrupted: '运行已中断', budget_exhausted: '预算已耗尽' };
 statusNames.blocked = '暂未解决';
 statusNames.reviewed = '检查完成 · 未提交补丁';
 statusNames.running = 'Agent 执行中';
+statusNames.checked = '检查完成';
 const tools = { list_files: '查看文件', search: '搜索代码', read_file: '读取文件', symbols: '定位符号', edit_file: '修改源代码', run_tests: '运行开发测试', update_plan: '更新修复计划', record_finding: '记录修复假设', get_patch: '审查当前补丁', rollback_edit: '撤销最近修改', submit: '提交候选补丁', finish: '报告未解决原因' };
 Object.assign(tools, {record_candidate:'登记候选问题', resolve_candidate:'判断候选问题', write_reproducer:'构造最小复现', run_reproducer:'验证问题假设', finish:'结束并报告调查结果', update_plan:'调整行动计划', references:'定位引用', outline:'查看仓库骨架'});
 const TEST_CATEGORIES = {ok:'通过', test_failure:'断言失败', code_error:'语法错误', collection_error:'收集失败', environment_error:'环境故障', timeout:'超时', cancelled:'取消', output_limit:'输出超限', workspace_changed_during_test:'测试期间代码被改动', insufficient_test_evidence:'测试证据不完整', reproducer_error:'复现测试自身错误', reproducer_no_assertion_result:'复现缺少断言结果', probe_workspace_changed:'复现期间代码被改动'};
@@ -56,9 +57,8 @@ function setWorkspace(id, { keepComposer = false } = {}) {
       : `当前工作区：${entry.name}${entry.description ? ' · ' + String(entry.description).slice(0, 60) : ''}`)
     : $('hero-note').textContent;
   const custom = entry?.kind === 'local';
-  // ＋ 只列功能；检查环境/收集测试仅对自定义本地仓库开放
+  // ＋ 只列功能；检查环境/收集测试仅对自定义本地仓库开放（结果入历史会话）
   document.querySelectorAll('#composer-plus-menu .custom-only').forEach(el => el.classList.toggle('hidden', !custom));
-  renderPreflight('repository-preflight', entry?.preflight);
   $('allow-local').checked = false;
   if (!keepComposer) $('composer-text').value = '';
   buildWorkspaceMenu();
@@ -178,13 +178,15 @@ async function checkSelectedRepository(collect) {
   const id = state.workspace;
   $('form-error').textContent = '';
   if (collect && $('backend').value === 'local' && !$('allow-local').checked) { promptLocalConsent(); return; }
-  ['check-repository', 'collect-repository', 'composer-send'].forEach(key => $(key).disabled = true);
+  ['check-repository', 'collect-repository'].forEach(key => $(key).disabled = true);
   try {
     const report = await api(`/api/repositories/${id}/preflight`, {method:'POST', body:JSON.stringify({backend:$('backend').value, allow_local:$('allow-local').checked, collect_tests:collect})});
-    const fixture = workspaceEntry(); if (fixture) { fixture.preflight = report; renderPreflight('repository-preflight', report); }
-    if (state.selected) appendPreflightEvent(report);
+    const fixture = workspaceEntry(); if (fixture) { fixture.preflight = report; }
+    const session = await api('/api/check-sessions', {method:'POST', body:JSON.stringify({
+      fixture: id, backend: $('backend').value, collect, report})});
+    await openTask(session.id);
   } catch (e) { $('form-error').textContent = e.message; }
-  finally { ['check-repository', 'collect-repository', 'composer-send'].forEach(key => $(key).disabled = false); }
+  finally { ['check-repository', 'collect-repository'].forEach(key => $(key).disabled = false); }
 }
 
 /* ---------- 任务渲染 ---------- */
@@ -192,7 +194,9 @@ function renderTask(task) {
   $('run-title-sm').textContent = task.title;
   $('status').textContent = statusNames[task.status] || task.status;
   $('status').className = 'status ' + task.status;
-  $('run-meta').textContent = `${task.task_kind === 'inspect' ? '自主检查并修复' : '修复指定问题'} / ${task.mode === 'demo' ? '脚本演示，非真实模型' : task.model} / ${task.backend === 'local' ? '可信本地执行，无容器隔离' : 'Docker'} / ${task.strategy === 'feedback' ? '反馈迭代' : '单次补丁尝试'}`;
+  $('run-meta').textContent = task.task_kind === 'check'
+    ? `环境检查 · ${task.backend === 'local' ? '本地 Python' : 'Docker'}`
+    : `${task.task_kind === 'inspect' ? '自主检查并修复' : '修复指定问题'} / ${task.mode === 'demo' ? '脚本演示，非真实模型' : task.model} / ${task.backend === 'local' ? '可信本地执行，无容器隔离' : 'Docker'} / ${task.strategy === 'feedback' ? '反馈迭代' : '单次补丁尝试'}`;
   $('metric-calls').textContent = task.model_calls ?? '—';
   $('metric-tokens').textContent = task.mode === 'demo' ? '不适用' : (Number(task.tokens?.prompt || 0) + Number(task.tokens?.completion || 0)).toLocaleString();
   $('metric-time').textContent = task.seconds != null ? task.seconds + 's' : '进行中';
@@ -365,6 +369,14 @@ function appendEvent(event) {
     return;
   }
   if (event.kind === 'milestone') { appendMilestone(d); return; }
+  if (event.kind === 'preflight') {
+    const el = document.createElement('div'); el.className = 'event preflight-event';
+    const title = d.collect ? (d.ready ? '✓ 测试收集完成' : '× 测试收集发现问题') : (d.ready ? '✓ 环境检查通过' : '× 环境检查发现问题');
+    el.innerHTML = `<div class="event-top"><span class="event-title">${escape(title)}</span></div><div class="preflight"><ul>${(d.checks || []).map(c =>
+      `<li class="${escape(c.status)}"><strong>${escape(c.label)}</strong>${escape(c.detail)}</li>`).join('')}</ul></div>`;
+    $('timeline').appendChild(el);
+    return;
+  }
   if (event.kind === 'action' || event.kind === 'format_error') document.getElementById('stream-' + d.step)?.remove();
   const title = event.kind === 'action' ? tools[d.action.tool] : event.kind === 'observation' ? (d.ok ? '获得执行反馈' : '发现问题，等待调整') : event.kind === 'started' ? (d.follow_up ? `第 ${d.round || 2} 轮开始` : d.resumed ? '任务续跑' : '任务开始') : ({format_error:'动作格式需修正', verification_started:'开始独立验收', verification:'验收完成', finished:'任务结束', error:'执行异常', cancel_requested:'请求停止', interrupted:'服务重启'}[event.kind] || event.kind);
   const detail = event.kind === 'action' ? d.note : event.kind === 'observation' ? (d.error || d.category) : d.detail || d.note || statusNames[d.status] || '';
@@ -493,11 +505,13 @@ function updateComposerMode(task) {
     setRunMode(state.runMode || 'repair');
     return;
   }
-  const canFollowUp = terminal.has(task.status) && task.mode === 'model';
+  const canFollowUp = terminal.has(task.status) && task.mode === 'model' && task.task_kind !== 'check';
   $('composer-send').disabled = !canFollowUp;
-  $('composer-text').placeholder = task.mode !== 'model' ? '脚本演示任务不支持追加指令。'
+  $('composer-text').placeholder = task.task_kind === 'check' ? '环境检查会话只记录结果，不支持追加指令。'
+    : task.mode !== 'model' ? '脚本演示任务不支持追加指令。'
     : canFollowUp ? '追加指令，Agent 在同一工作区继续…' : 'Agent 执行中，本轮结束后可继续下达指令…';
-  $('composer-hint').textContent = task.mode !== 'model' ? '脚本演示任务不支持追加指令；真实模型任务可在结束后继续对话。'
+  $('composer-hint').textContent = task.task_kind === 'check' ? '会话已保存到本工作区历史，可随时回看。'
+    : task.mode !== 'model' ? '脚本演示任务不支持追加指令；真实模型任务可在结束后继续对话。'
     : terminal.has(task.status) ? '任务已结束，可继续下达指令，Agent 将在同一工作区开启新一轮。'
     : 'Agent 执行中，本轮结束后可继续下达指令…';
 }
@@ -614,17 +628,6 @@ function showPlusMain() {
   const list = $('plus-ref-list');
   list.classList.add('hidden');
   list.innerHTML = '';
-}
-function appendPreflightEvent(report) {
-  const timeline = $('timeline');
-  if (!timeline) return;
-  const card = document.createElement('div');
-  card.className = 'event preflight-event';
-  const title = report.ready ? '✓ 环境检查通过' : '× 环境检查发现问题';
-  card.innerHTML = `<div class="event-top"><span class="event-title">${escape(title)}</span></div><div class="preflight"><ul>${report.checks.map(c =>
-    `<li class="${escape(c.status)}"><strong>${escape(c.label)}</strong>${escape(c.detail)}</li>`).join('')}</ul></div>`;
-  timeline.appendChild(card);
-  card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 async function openReferenceList() {
   if (!state.selected) return;

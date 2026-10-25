@@ -402,8 +402,7 @@ body.launch .composer-pill, body.launch #composer-hint, body.launch #form-error 
 .plus-ico { width: 18px; text-align: center; flex-shrink: 0; }
 .plus-label-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plus-chev { color: #b3bfb0; }
-#repository-preflight { max-width: 720px; margin: 26px auto 0; text-align: left; }
-#repository-preflight details { max-height: 34vh; overflow-y: auto; overscroll-behavior: contain; }
+.preflight-event .preflight { background: #fbfdf9; border: 1px solid var(--line); border-radius: 7px; padding: 2px 12px 4px; margin-top: 8px; }
 .text-button { color: var(--green); font-size: 11px; padding: 4px 0; text-align: left; }
 .text-button:hover { text-decoration: underline; }
 .text-button:disabled { opacity: .5; cursor: not-allowed; }
