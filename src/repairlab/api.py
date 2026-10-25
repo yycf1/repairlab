@@ -199,6 +199,15 @@ def create_app(settings=None):
     def get(task_id: str):
         return task_or_404(task_id)
 
+    @app.delete("/api/tasks/{task_id}")
+    def delete_task(task_id: str):
+        task_or_404(task_id)
+        try:
+            service().delete_task(task_id)
+        except ValueError as error:
+            raise HTTPException(400, str(error))
+        return {"ok": True}
+
     @app.post("/api/tasks/{task_id}/cancel")
     def cancel(task_id: str):
         task_or_404(task_id)

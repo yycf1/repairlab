@@ -148,6 +148,18 @@ class Service:
             "ready": bool(report.get("ready")), "checked_at": report.get("checked_at"), "checks": checks})
         return self.store.get(task_id)
 
+    def delete_task(self, task_id):
+        """Remove a finished session from history along with its events and on-disk workspace."""
+        task = self.store.get(task_id)
+        if task is None:
+            raise ValueError("任务不存在。")
+        if task["status"] not in TERMINAL:
+            raise ValueError("任务仍在执行中，请先停止再删除。")
+        self.store.delete(task_id)
+        self.cancellations.pop(task_id, None)
+        # 工作区副本与执行现场一并清理；id 由 API 层校验为 16 位十六进制后才允许到达这里
+        shutil.rmtree(self.settings.data_dir / "tasks" / task_id, ignore_errors=True)
+
     def follow_up(self, task_id, text, *, model_override=None):
         """Continue a finished task in the same workspace with a new user instruction.
 

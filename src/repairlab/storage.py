@@ -65,6 +65,13 @@ class Store:
                                 (task_id, time.time(), kind, json.dumps(data)))
             return cursor.lastrowid
 
+    def delete(self, task_id):
+        """Remove a task and all of its events; returns whether a row was deleted."""
+        with self.lock, self.connect() as db:
+            db.execute("DELETE FROM events WHERE task_id=?", (task_id,))
+            cursor = db.execute("DELETE FROM tasks WHERE id=?", (task_id,))
+            return cursor.rowcount > 0
+
     def events(self, task_id, after=0):
         with self.connect() as db:
             rows = db.execute("SELECT * FROM events WHERE task_id=? AND id>? ORDER BY id LIMIT 500",

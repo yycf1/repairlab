@@ -72,8 +72,27 @@ async function refreshRepositories(selected) {
 }
 async function refreshTasks() {
   const tasks = await api(`/api/tasks?fixture=${encodeURIComponent(state.workspace)}`);
-  $('task-list').innerHTML = tasks.length ? tasks.map(t => `<button class="task-item ${state.selected === t.id ? 'selected' : ''}" data-id="${escape(t.id)}">${escape(t.title)}<small>${escape(statusNames[t.status] || t.status)} · ${t.mode === 'demo' ? '脚本演示' : '真实模型'}${t.round > 1 ? ` · ${t.round} 轮` : ''}</small></button>`).join('') : '<p class="quiet">本工作区尚无任务。<br>在下方输入框描述问题开始第一个。</p>';
-  $('task-list').querySelectorAll('button').forEach(b => b.onclick = () => openTask(b.dataset.id));
+  $('task-list').innerHTML = tasks.length ? tasks.map(t =>
+    `<div class="task-item ${state.selected === t.id ? 'selected' : ''}" data-id="${escape(t.id)}">` +
+    `<button type="button" class="task-open" data-id="${escape(t.id)}"><span class="task-name">${escape(t.title)}</span><small>${escape(statusNames[t.status] || t.status)} · ${t.mode === 'demo' ? '脚本演示' : '真实模型'}${t.round > 1 ? ` · ${t.round} 轮` : ''}</small></button>` +
+    `<button type="button" class="task-del" data-del="${escape(t.id)}" title="删除该会话">×</button></div>`).join('')
+    : '<p class="quiet">本工作区尚无任务。<br>在下方输入框描述问题开始第一个。</p>';
+  $('task-list').querySelectorAll('.task-open').forEach(b => b.onclick = () => openTask(b.dataset.id));
+  $('task-list').querySelectorAll('.task-del').forEach(b => b.onclick = (e) => { e.stopPropagation(); armTaskDelete(b); });
+}
+function armTaskDelete(button) {
+  if (button.classList.contains('armed')) { deleteTask(button.dataset.del, button); return; }
+  button.classList.add('armed');
+  button.textContent = '确认';
+  setTimeout(() => { button.classList.remove('armed'); button.textContent = '×'; }, 4000);
+}
+async function deleteTask(id, button) {
+  button.disabled = true;
+  try {
+    await api(`/api/tasks/${id}`, { method: 'DELETE' });
+    if (state.selected === id) showHero();
+    else await refreshTasks();
+  } catch (e) { $('form-error').textContent = e.message; button.disabled = false; }
 }
 
 /* ---------- 仓库接入对话框（沿用） ---------- */
