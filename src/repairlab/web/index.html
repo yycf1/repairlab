@@ -31,7 +31,7 @@
     <div class="topbar-actions">
       <button id="resume" class="cancel hidden">从检查点继续 ↻</button>
       <button id="cancel" class="cancel hidden">停止任务</button>
-      <div id="model-status" class="chip" title="模型与运行预算设置">检查模型配置…</div>
+      <button id="project-settings" class="chip" title="运行环境与预算">⚙ 设置</button>
     </div>
   </header>
   <div id="main-scroll">
@@ -75,6 +75,10 @@
         </div>
       </div>
       <textarea id="composer-text" rows="1" placeholder="描述要修复的问题：预期行为、实际结果、复现条件。"></textarea>
+      <div class="composer-model">
+        <button type="button" id="model-chip" class="model-chip" title="选择模型">检查模型配置…</button>
+        <div id="model-menu" class="model-menu hidden"></div>
+      </div>
       <button id="composer-send" class="send-btn" title="发送（Enter 发送，Shift+Enter 换行）">↑</button>
     </div>
     <p id="composer-hint" class="composer-hint"></p>
@@ -112,11 +116,10 @@
   </form>
 </dialog>
 <dialog id="model-settings-dialog" aria-labelledby="model-settings-title">
-  <div class="dialog-heading"><h2 id="model-settings-title">设置</h2><button id="close-model-settings" class="text-button" aria-label="关闭设置">关闭 ×</button></div>
-  <p class="dialog-intro">模型、执行环境与运行预算统一在这里配置。密钥只保存在本机 .env（已被 Git 忽略），不会上传，也不会出现在任务报告里。</p>
+  <div class="dialog-heading"><h2 id="model-settings-title">配置模型</h2><button id="close-model-settings" class="text-button" aria-label="关闭模型配置">关闭 ×</button></div>
+  <p class="dialog-intro">填写 OpenAI 兼容的 Chat Completions 接口。密钥只保存在本机 .env（已被 Git 忽略），不会上传，也不会出现在任务报告里。保存后会登记为可选模型，可在输入框旁随时切换。</p>
   <form id="model-settings-form">
     <fieldset id="model-settings-fields">
-      <div class="settings-section-label">模型</div>
       <label for="model-provider">厂商预设</label><select id="model-provider"></select>
       <p id="provider-note" class="field-note" aria-live="polite"></p>
       <label for="model-base-url">接口地址</label><input id="model-base-url" placeholder="https://api.example.com/v1" autocomplete="off" spellcheck="false">
@@ -125,23 +128,28 @@
       <div class="manual-directory"><input id="model-api-key" type="password" placeholder="sk-…" autocomplete="off" spellcheck="false"><button id="toggle-key" type="button" class="secondary">显示</button></div>
       <p class="field-note">已保存过密钥时可留空，保存将沿用原值。「测试连接」发送一条最小请求，不会保存任何内容。</p>
       <div id="model-test-result" class="preflight" aria-live="polite"></div>
-      <div class="settings-section-label">运行环境</div>
-      <div class="seg-row" id="backend-seg">
-        <button type="button" data-backend="docker">Docker 隔离环境</button>
-        <button type="button" data-backend="local">本地执行 · 仅可信仓库</button>
-      </div>
-      <label id="local-consent" class="consent hidden"><input type="checkbox" id="allow-local"><span>此仓库可信，我允许在本机运行测试。</span></label>
-      <p class="field-note">本地执行没有容器隔离，仅对可信仓库使用；未安装 Docker 时会自动使用本地执行。</p>
-      <div class="settings-section-label">运行预算</div>
-      <div class="dialog-budget">
-        <div><label for="steps">最大决策步数</label><input id="steps" type="number" min="1" max="60" value="20"></div>
-        <div><label for="timeout">单次测试超时 / 秒</label><input id="timeout" type="number" min="1" max="120" value="30"></div>
-      </div>
-      <p class="field-note">预算约束 Agent 单轮的工作量：步数用尽或测试超时即停止，任务结束后可继续下达指令。</p>
       <p id="model-settings-error" class="error-message" role="alert"></p>
     </fieldset>
     <div class="dialog-actions"><button id="test-model" type="button" class="secondary">测试连接</button><button type="submit" class="primary">保存配置 ↗</button></div>
   </form>
+</dialog>
+<dialog id="project-settings-dialog" aria-labelledby="project-settings-title">
+  <div class="dialog-heading"><h2 id="project-settings-title">运行设置</h2><button id="close-project-settings" class="text-button" aria-label="关闭运行设置">关闭 ×</button></div>
+  <p class="dialog-intro">任务执行的环境与预算。模型选择在输入框右侧，不在这里。</p>
+  <div class="settings-section-label">运行环境</div>
+  <div class="seg-row" id="backend-seg">
+    <button type="button" data-backend="docker">Docker 隔离环境</button>
+    <button type="button" data-backend="local">本地执行 · 仅可信仓库</button>
+  </div>
+  <label id="local-consent" class="consent hidden"><input type="checkbox" id="allow-local"><span>此仓库可信，我允许在本机运行测试。</span></label>
+  <p class="field-note">本地执行没有容器隔离，仅对可信仓库使用；未安装 Docker 时会自动使用本地执行。</p>
+  <div class="settings-section-label">运行预算</div>
+  <div class="dialog-budget">
+    <div><label for="steps">最大决策步数</label><input id="steps" type="number" min="1" max="60" value="20"></div>
+    <div><label for="timeout">单次测试超时 / 秒</label><input id="timeout" type="number" min="1" max="120" value="30"></div>
+  </div>
+  <p class="field-note">预算约束 Agent 单轮的工作量：步数用尽或测试超时即停止，任务结束后可继续下达指令。</p>
+  <div class="dialog-actions"><button type="button" id="close-project-settings-ok" class="primary">完成</button></div>
 </dialog>
 <script src="/static/app.js"></script>
 </body>

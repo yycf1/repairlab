@@ -593,8 +593,8 @@ function pulseConsent() {
   c.scrollIntoView({ block: 'center' });
 }
 function promptLocalConsent() {
-  $('form-error').textContent = '请在设置中确认「此仓库可信」后重试。';
-  openModelSettings(true);
+  $('form-error').textContent = '请在运行设置中确认「此仓库可信」后重试。';
+  openProjectSettings(true);
 }
 $('composer-plus').onclick = (e) => {
   e.stopPropagation();
@@ -609,8 +609,10 @@ $('backend').onchange = setBackend;
 /* ---------- 模型设置 ---------- */
 async function renderModelStatus() {
   state.config = await api('/api/config');
-  $('model-status').textContent = state.config.model_configured ? '● ' + (state.config.model || '已配置') : '○ 真实模型待配置 · 点击设置';
-  $('model-status').classList.toggle('ready', state.config.model_configured);
+  const chip = $('model-chip');
+  chip.textContent = state.config.model_configured ? state.config.model : '○ 配置模型';
+  chip.classList.toggle('ready', state.config.model_configured);
+  chip.title = state.config.model_configured ? '选择或配置模型' : '点击配置模型';
 }
 const providerById = id => (state.providers || []).find(p => p.id === id);
 function syncProviderFields(fill) {
@@ -628,7 +630,7 @@ function renderTestResult(result) {
   if (result.pending) { el.innerHTML = '<div class="preflight-summary">正在发送测试请求…</div>'; return; }
   el.innerHTML = `<div class="preflight-summary ${result.ok ? '' : 'blocked'}">${result.ok ? '✓' : '×'} ${escape(result.message)}${result.latency_ms != null ? `<div>${result.latency_ms} ms</div>` : ''}</div>`;
 }
-async function openModelSettings(attentionConsent = false) {
+async function openModelSettings() {
   $('model-settings-error').textContent = ''; renderTestResult(null);
   const [config, providers] = await Promise.all([api('/api/settings/model'), api('/api/settings/providers')]);
   state.providers = providers;
@@ -638,11 +640,48 @@ async function openModelSettings(attentionConsent = false) {
   $('model-api-key').placeholder = config.api_key_masked ? `已配置（${config.api_key_masked}），留空沿用` : 'sk-…';
   $('model-provider').value = providers.some(p => p.id === config.provider) ? config.provider : 'custom';
   syncProviderFields(false);
-  setBackend();
   $('model-settings-dialog').showModal();
+}
+function closeModelMenu() { $('model-menu').classList.add('hidden'); }
+async function openModelMenu() {
+  const menu = $('model-menu');
+  const data = await api('/api/settings/models');
+  const items = (data.items || []).map(p =>
+    `<button type="button" class="model-item ${p.active ? 'active' : ''}" data-id="${escape(p.id)}"><span class="model-item-label">${escape(p.label)}</span>${p.active ? '<span class="model-check">✓</span>' : ''}</button>`).join('');
+  menu.innerHTML = (items || '<p class="model-empty">尚未保存模型配置。</p>') +
+    '<div class="ws-sep"></div><button type="button" id="configure-model" class="model-item configure">⚙ 配置自定义模型…</button>';
+  const rect = $('model-chip').getBoundingClientRect();
+  // 高度按输入框上方可用空间钳制；右对齐到模型按钮
+  menu.style.right = Math.max(12, window.innerWidth - rect.right) + 'px';
+  menu.style.bottom = window.innerHeight - rect.top + 10 + 'px';
+  menu.style.maxHeight = Math.max(200, rect.top - 80) + 'px';
+  menu.classList.remove('hidden');
+}
+$('model-chip').onclick = async (e) => {
+  e.stopPropagation();
+  const menu = $('model-menu');
+  if (!menu.classList.contains('hidden')) { closeModelMenu(); return; }
+  if (!state.config.model_configured) { openModelSettings().catch(err => $('form-error').textContent = err.message); return; }
+  try { await openModelMenu(); } catch (err) { $('form-error').textContent = err.message; }
+};
+$('model-menu').addEventListener('click', async (e) => {
+  const item = e.target.closest('.model-item');
+  if (!item) return;
+  if (item.id === 'configure-model') { closeModelMenu(); openModelSettings().catch(err => $('form-error').textContent = err.message); return; }
+  try {
+    await api('/api/settings/models/activate', { method: 'POST', body: JSON.stringify({ id: item.dataset.id }) });
+    closeModelMenu(); await renderModelStatus();
+  } catch (err) { $('form-error').textContent = err.message; }
+});
+document.addEventListener('click', (e) => { if (!e.target.closest('#model-menu, #model-chip')) closeModelMenu(); });
+function openProjectSettings(attentionConsent = false) {
+  setBackend();
+  $('project-settings-dialog').showModal();
   if (attentionConsent) pulseConsent();
 }
-$('model-status').onclick = () => openModelSettings().catch(e => $('form-error').textContent = e.message);
+$('project-settings').onclick = () => openProjectSettings(false);
+$('close-project-settings').onclick = () => $('project-settings-dialog').close();
+$('close-project-settings-ok').onclick = () => $('project-settings-dialog').close();
 $('close-model-settings').onclick = () => $('model-settings-dialog').close();
 $('model-provider').onchange = () => syncProviderFields(true);
 $('toggle-key').onclick = () => {

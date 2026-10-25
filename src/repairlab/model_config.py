@@ -1,14 +1,19 @@
 """Vendor presets and persistent model configuration for the workbench.
 
-The .env file stays the single persisted location (documented in README, git-ignored).
+The .env file stays the single persisted ACTIVE configuration (documented in
+README, git-ignored); model-profiles.json inside the data directory stores the
+operator's saved profiles so the composer picker can switch between them.
 Presets prefill base_url and model names for OpenAI-compatible Chat Completions
 providers; the operator only adds their API key. No key material is ever logged,
-echoed in full, or sent anywhere except the operator-chosen endpoint.
+echoed in full, or sent anywhere except the operator-chosen endpoint; profile
+files live in the local data directory only.
 """
 from __future__ import annotations
 
+import json
 import os
 import time
+import uuid
 from pathlib import Path
 
 import httpx
@@ -105,6 +110,86 @@ def public_model_settings(settings):
     provider = next((p["id"] for p in PROVIDERS if p["base_url"] and p["base_url"].rstrip("/") == base_url), "custom")
     return {"configured": settings.model_ready, "model": values[MODEL_KEY] or settings.model,
             "base_url": base_url, "api_key_masked": mask_key(stored_key), "provider": provider}
+
+
+def _profiles_path(settings):
+    return settings.data_dir / "model-profiles.json"
+
+
+def load_profiles(settings):
+    """Saved model profiles: {"active": id, "items": [{id, label, base_url, model, api_key}]}.
+
+    Seeded from the live .env configuration on first use so a fresh install shows
+    its current model instead of an empty list.
+    """
+    path = _profiles_path(settings)
+    data = None
+    if path.exists():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            data = None
+    if isinstance(data, dict) and isinstance(data.get("items"), list):
+        items = [p for p in data["items"] if isinstance(p, dict) and p.get("id") and p.get("model")]
+        active = data.get("active")
+        if active not in {p["id"] for p in items}:
+            active = items[0]["id"] if items else None
+        return {"active": active, "items": items}
+    values = read_env_config(settings.env_path)
+    if values[MODEL_KEY] and values[BASE_URL_KEY]:
+        payload = {"active": "default", "items": [
+            {"id": "default", "label": values[MODEL_KEY], "base_url": values[BASE_URL_KEY],
+             "model": values[MODEL_KEY], "api_key": values[API_KEY_KEY] or settings.api_key}]}
+        save_profiles(settings, payload)
+        return payload
+    return {"active": None, "items": []}
+
+
+def save_profiles(settings, payload):
+    path = _profiles_path(settings)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def public_profiles(settings):
+    """Picker payload; keys are masked and never returned in full."""
+    payload = load_profiles(settings)
+    current = public_model_settings(settings)
+    items = [{**{k: p[k] for k in ("id", "base_url", "model")},
+              "label": p.get("label") or p["model"], "api_key_masked": mask_key(p.get("api_key", "")),
+              "active": p["id"] == payload["active"]} for p in payload["items"]]
+    return {"active": payload["active"], "items": items, "configured": current["configured"]}
+
+
+def upsert_profile(settings, *, base_url, model, api_key):
+    """Add or update a profile matching (base_url, model); returns its id."""
+    payload = load_profiles(settings)
+    base_url = base_url.rstrip("/")
+    profile = next((p for p in payload["items"]
+                    if p["base_url"].rstrip("/") == base_url and p["model"] == model), None)
+    if profile is None:
+        profile = {"id": "m-" + uuid.uuid4().hex[:8], "base_url": base_url, "model": model}
+        payload["items"].append(profile)
+    profile["label"] = model
+    if api_key:
+        profile["api_key"] = api_key
+    payload["active"] = profile["id"]
+    save_profiles(settings, payload)
+    return profile["id"]
+
+
+def activate_profile(settings, profile_id):
+    """Switch the active configuration to a saved profile (updates .env + process)."""
+    payload = load_profiles(settings)
+    profile = next((p for p in payload["items"] if p["id"] == profile_id), None)
+    if profile is None:
+        raise ValueError("该模型配置不存在，请刷新后重试。")
+    values = write_env_config(settings.env_path, model=profile["model"], base_url=profile["base_url"],
+                              api_key=profile.get("api_key", ""))
+    apply_to_process(values)
+    payload["active"] = profile["id"]
+    save_profiles(settings, payload)
+    return public_model_settings(settings)
 
 
 def test_connection(base_url, api_key, model, *, client=None, timeout=12):

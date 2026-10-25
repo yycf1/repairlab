@@ -119,3 +119,37 @@ def test_settings_api_validation(settings, isolated_env):
         # Test endpoint requires a key when none is stored.
         assert client.post("/api/settings/model/test", json={
             "model": "m", "base_url": "https://api.invalid/v1"}).status_code == 400
+
+
+def test_model_profiles_lifecycle(settings, isolated_env):
+    with TestClient(create_app(settings)) as client:
+        # 空配置 → 选择器为空；保存即登记为档案并激活
+        assert client.get("/api/settings/models").json()["items"] == []
+        client.put("/api/settings/model", json={
+            "model": "deepseek-chat", "base_url": "https://api.deepseek.com/v1", "api_key": "sk-abcdef1234567890"})
+        listing = client.get("/api/settings/models").json()
+        assert [p["label"] for p in listing["items"]] == ["deepseek-chat"]
+        assert listing["items"][0]["active"] is True
+        assert "sk-abcdef1234567890" not in str(listing)
+
+        # 保存第二份 → 两项并存，新保存的成为激活项
+        client.put("/api/settings/model", json={
+            "model": "glm-4.6", "base_url": "https://open.bigmodel.cn/api/paas/v4", "api_key": "sk-zhipu12345678"})
+        listing = client.get("/api/settings/models").json()
+        assert len(listing["items"]) == 2
+        assert next(p for p in listing["items"] if p["active"])["model"] == "glm-4.6"
+
+        # 切换回第一份 → .env 与运行中的进程立即跟随
+        target = next(p for p in listing["items"] if p["model"] == "deepseek-chat")
+        switched = client.post("/api/settings/models/activate", json={"id": target["id"]}).json()
+        assert switched["model"] == "deepseek-chat"
+        assert client.get("/api/config").json()["model"] == "deepseek-chat"
+        values = read_env_config(isolated_env)
+        assert values["REPAIRLAB_MODEL"] == "deepseek-chat"
+        assert values["REPAIRLAB_API_KEY"] == "sk-abcdef1234567890"
+
+        # 未知档案 → 404；重复保存同 base_url+model 只更新不重复登记
+        assert client.post("/api/settings/models/activate", json={"id": "missing"}).status_code == 404
+        client.put("/api/settings/model", json={
+            "model": "deepseek-chat", "base_url": "https://api.deepseek.com/v1"})
+        assert len(client.get("/api/settings/models").json()["items"]) == 2

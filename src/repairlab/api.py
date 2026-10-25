@@ -11,10 +11,13 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from repairlab.models import (ApplyRequest, DirectoryDiscovery, DirectoryPick, FollowUpRequest, ModelSettingsUpdate,
-                              RepoProfile, RepositoryCheck, RepositoryRegistration, StartRequest)
+                              ProfileActivateRequest, RepoProfile, RepositoryCheck, RepositoryRegistration,
+                              StartRequest)
 from repairlab.directory_picker import choose_directory
 from repairlab.discovery import discover_repository
-from repairlab.model_config import PROVIDERS, apply_to_process, public_model_settings, test_connection, write_env_config
+from repairlab.model_config import (API_KEY_KEY, PROVIDERS, activate_profile, apply_to_process,
+                                    public_model_settings, public_profiles, test_connection, upsert_profile,
+                                    write_env_config)
 from repairlab.repository import Repository
 from repairlab.service import Service, TERMINAL
 from repairlab.settings import Settings
@@ -86,7 +89,20 @@ def create_app(settings=None):
         values = write_env_config(settings.env_path, model=request.model.strip(), base_url=base_url,
                                   api_key=request.api_key.strip() or stored)
         apply_to_process(values)
+        # 保存即登记为一份可选模型档案（按 base_url+model 去重），供输入框选择器切换。
+        upsert_profile(settings, base_url=base_url, model=request.model.strip(), api_key=values[API_KEY_KEY])
         return public_model_settings(settings)
+
+    @app.get("/api/settings/models")
+    def list_model_profiles():
+        return public_profiles(settings)
+
+    @app.post("/api/settings/models/activate")
+    def activate_model_profile(request: ProfileActivateRequest):
+        try:
+            return activate_profile(settings, request.id)
+        except ValueError as error:
+            raise HTTPException(404, str(error))
 
     @app.post("/api/settings/model/test")
     def test_model_settings(request: ModelSettingsUpdate):

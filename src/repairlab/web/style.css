@@ -128,8 +128,8 @@ main {
 .cancel:hover { text-decoration: underline; }
 .chip { padding: 5px 12px; border: 1px solid #dfe4dc; border-radius: 20px; color: #687866; font-size: 11px; background: #f8faf7; white-space: nowrap; }
 .chip.ready { background: var(--soft); color: var(--green); }
-#model-status { cursor: pointer; }
-#model-status:hover { border-color: #7c9b7b; color: var(--green); }
+#project-settings { cursor: pointer; }
+#project-settings:hover { border-color: #7c9b7b; color: var(--green); }
 
 #main-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 
@@ -340,6 +340,30 @@ body.launch .composer-pill, body.launch #composer-hint, body.launch #form-error 
   font-size: 13px; line-height: 1.6;
 }
 #composer-text:focus { border: 0; box-shadow: none; }
+.composer-model { position: relative; flex-shrink: 0; }
+.model-chip {
+  max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 8px 10px; border: 1px solid transparent; border-radius: 8px;
+  background: #f4f7f1; color: #5d6a5f; font-size: 12px;
+}
+.model-chip.ready { color: var(--green); }
+.model-chip:hover { border-color: #cfdcc7; color: var(--green); }
+.model-menu {
+  position: fixed; z-index: 80; width: min(300px, calc(100vw - 24px));
+  overflow-y: auto; overscroll-behavior: contain;
+  background: #fff; border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 14px 40px #152b3226; padding: 8px;
+}
+.model-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; text-align: left; padding: 9px 10px; border-radius: 7px;
+  font-size: 12px; color: #354036;
+}
+.model-item:hover { background: #f2f6ee; }
+.model-item.active { color: var(--green); font-weight: 600; }
+.model-item-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.model-item.configure { color: var(--green); }
+.model-empty { margin: 0; padding: 8px 10px; font-size: 11px; color: var(--muted); }
 .send-btn {
   width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
   background: var(--green); color: #fff; font-size: 16px; line-height: 1;
